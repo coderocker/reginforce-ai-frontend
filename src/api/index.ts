@@ -12,7 +12,8 @@ import type {
   MessagePublic,
   SendMessageRequest,
   SendMessageResponse,
-} from "../types/api";
+  AnalysisStats,
+} from "../types/api.js";
 
 // === Documents ===
 export const getDocuments = async (): Promise<DocumentPublic[]> => {
@@ -53,9 +54,27 @@ export const runAnalysis = async (
   return response.data;
 };
 
+export const getReports = async (): Promise<ReportPublic[]> => {
+  const response = await apiClient.get<ReportPublic[]>("/analysis");
+  return response.data;
+};
+
 export const getReport = async (reportId: number): Promise<ReportPublic> => {
   const response = await apiClient.get<ReportPublic>(`/analysis/${reportId}`);
+  console.log('Raw API response for report:', JSON.stringify(response.data, null, 2));
   return response.data;
+};
+
+export const getAnalysisStats = async (): Promise<AnalysisStats> => {
+  console.log('Fetching analysis stats from /analysis/stats');
+  try {
+    const response = await apiClient.get<AnalysisStats>("/analysis/stats");
+    console.log('Analysis stats response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching analysis stats:', error);
+    throw error;
+  }
 };
 
 export const getReportTrends = async (reportId: number): Promise<TrendData> => {

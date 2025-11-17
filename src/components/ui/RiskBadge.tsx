@@ -18,9 +18,9 @@ export function RiskBadge({ score, severity }: RiskBadgeProps) {
     if (severity) {
       return severity.charAt(0).toUpperCase() + severity.slice(1);
     }
-    if (score >= 8) return "Critical";
-    if (score >= 6) return "High";
-    if (score >= 4) return "Medium";
+    if (score >= 0.9) return "Critical";
+    if (score >= 0.7) return "High";
+    if (score >= 0.4) return "Medium";
     return "Low";
   };
 

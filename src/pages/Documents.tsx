@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getDocuments, uploadDocument } from "../api";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
-import type { DocumentType } from "../types/api";
+import type { DocumentType } from "../types/api.js";
 
 export function Documents() {
   const [activeTab, setActiveTab] = useState<DocumentType>("regulation");
@@ -124,6 +124,8 @@ export function Documents() {
               className="hidden"
               onChange={handleFileUpload}
               accept=".pdf,.txt"
+              aria-label="Upload document file"
+              title="Upload document file"
             />
             <Button
               variant="secondary"

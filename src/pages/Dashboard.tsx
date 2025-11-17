@@ -1,4 +1,49 @@
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { getDocuments, getReports, getAnalysisStats } from '../api';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { StatusPill } from '../components/ui/StatusPill';
+import NewAnalysisModal from '../components/NewAnalysisModal';
+
 export function Dashboard() {
+  const [showNewAnalysis, setShowNewAnalysis] = useState(false);
+
+  // Fetch dashboard data
+  const { data: documents = [], isLoading: documentsLoading } = useQuery({
+    queryKey: ['documents'],
+    queryFn: getDocuments,
+  });
+
+  const { data: reports = [], isLoading: reportsLoading } = useQuery({
+    queryKey: ['reports'],
+    queryFn: getReports,
+  });
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['analysis-stats'],
+    queryFn: getAnalysisStats,
+  });
+
+  // Calculate dashboard metrics from stats API
+  const totalDocuments = stats?.total_documents || documents.length;
+  const totalReports = stats?.total_analyses || reports.length;
+  const completedReports = reports.filter(r => r.status === 'processed');
+  const totalGaps = stats?.total_gaps || 0;
+  const totalHighRiskGaps = (stats?.total_critical || 0) + (stats?.total_high || 0);
+
+  // Recent activity
+  const recentReports = reports
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
+  const recentDocuments = documents
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 3);
+
+  const isLoading = documentsLoading || reportsLoading || statsLoading;
+
   return (
     <>
       <header className="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f1f2f3] px-10 py-3">
@@ -7,31 +52,307 @@ export function Dashboard() {
             Dashboard
           </h2>
         </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="primary"
+            onClick={() => setShowNewAnalysis(true)}
+          >
+            New Analysis
+          </Button>
+          <Link to="/documents">
+            <Button variant="secondary">Upload Documents</Button>
+          </Link>
+        </div>
       </header>
 
-      <div className="flex flex-col p-4 gap-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-600">Total Documents</h3>
-            <p className="text-3xl font-bold mt-2">0</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-600">Total Reports</h3>
-            <p className="text-3xl font-bold mt-2">0</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-600">Total Gaps</h3>
-            <p className="text-3xl font-bold mt-2">0</p>
-          </div>
+      <div className="flex flex-col p-6 gap-6">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600">Total Documents</h3>
+                  <p className="text-3xl font-bold mt-2 text-gray-900">
+                    {isLoading ? '...' : totalDocuments}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {stats?.total_regulations || documents.filter(d => d.doc_type === 'regulation').length} regulations, {' '}
+                    {stats?.total_policies || documents.filter(d => d.doc_type === 'policy').length} policies
+                  </p>
+                </div>
+                <div className="text-3xl">📄</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600">Total Reports</h3>
+                  <p className="text-3xl font-bold mt-2 text-gray-900">
+                    {isLoading ? '...' : totalReports}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {completedReports.length} completed
+                  </p>
+                </div>
+                <div className="text-3xl">📊</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600">Total Gaps</h3>
+                  <p className="text-3xl font-bold mt-2 text-gray-900">
+                    {isLoading ? '...' : totalGaps}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Across all completed reports
+                  </p>
+                </div>
+                <div className="text-3xl">⚠️</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600">High Risk Gaps</h3>
+                  <div className="mt-2 flex items-baseline gap-3">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-bold text-red-600">
+                        {isLoading ? '...' : (stats?.total_critical || 0)}
+                      </span>
+                      <span className="text-xs text-red-500 font-medium">Critical</span>
+                    </div>
+                    <div className="text-gray-300">+</div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-bold text-orange-600">
+                        {isLoading ? '...' : (stats?.total_high || 0)}
+                      </span>
+                      <span className="text-xs text-orange-500 font-medium">High</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Total: <span className="font-semibold">{isLoading ? '...' : totalHighRiskGaps}</span> requiring immediate attention
+                  </p>
+                </div>
+                <div className="text-3xl">🚨</div>
+              </div>
+            </div>
+          </Card>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-bold mb-4">Welcome to RegInforce AI</h3>
-          <p className="text-gray-600">
-            Start by uploading regulation and policy documents to analyze compliance gaps.
-          </p>
+        {/* Risk Breakdown */}
+        {stats && stats.total_gaps > 0 && (
+          <Card>
+            <div className="p-6">
+              <h3 className="text-lg font-bold mb-4 text-gray-900">Risk Distribution</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <div className="text-2xl font-bold text-red-600">{stats.total_critical}</div>
+                  <div className="text-sm text-red-600 mt-1">Critical</div>
+                </div>
+                <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">{stats.total_high}</div>
+                  <div className="text-sm text-orange-600 mt-1">High</div>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-600">{stats.total_medium}</div>
+                  <div className="text-sm text-yellow-600 mt-1">Medium</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{stats.total_low}</div>
+                  <div className="text-sm text-green-600 mt-1">Low</div>
+                </div>
+              </div>
+              <div className="mt-4 text-center text-sm text-gray-600">
+                Average Risk Score: <span className="font-semibold">{stats.average_risk_score?.toFixed(3) || 'N/A'}</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Quick Actions */}
+        <Card>
+          <div className="p-6">
+            <h3 className="text-lg font-bold mb-4 text-gray-900">Quick Actions</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <button
+                onClick={() => setShowNewAnalysis(true)}
+                className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="text-2xl">🔍</div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Start New Analysis</h4>
+                  <p className="text-sm text-gray-600">Compare policy against regulation</p>
+                </div>
+              </button>
+
+              <Link
+                to="/documents"
+                className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="text-2xl">📤</div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Upload Documents</h4>
+                  <p className="text-sm text-gray-600">Add new regulations or policies</p>
+                </div>
+              </Link>
+
+              <Link
+                to="/reports"
+                className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="text-2xl">📋</div>
+                <div>
+                  <h4 className="font-medium text-gray-900">View All Reports</h4>
+                  <p className="text-sm text-gray-600">Browse analysis history</p>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </Card>
+
+        {/* Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recent Reports */}
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Recent Reports</h3>
+                <Link to="/reports">
+                  <Button variant="secondary" size="sm">View All</Button>
+                </Link>
+              </div>
+
+              {recentReports.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 text-4xl mb-2">📊</div>
+                  <p className="text-gray-600">No reports yet</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Start your first analysis to see reports here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentReports.map((report) => (
+                    <Link
+                      key={report.id}
+                      to={`/reports/${report.id}`}
+                      className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900">
+                            Analysis #{report.id}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {new Date(report.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {report.total_high > 0 && (
+                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                              {report.total_high} High Risk
+                            </span>
+                          )}
+                          <StatusPill status={report.status} />
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Recent Documents */}
+          <Card>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Recent Documents</h3>
+                <Link to="/documents">
+                  <Button variant="secondary" size="sm">Upload More</Button>
+                </Link>
+              </div>
+
+              {recentDocuments.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 text-4xl mb-2">📄</div>
+                  <p className="text-gray-600">No documents yet</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Upload regulations and policies to get started
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                    >
+                      <div>
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {doc.filename}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {new Date(doc.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-1 rounded ${doc.doc_type === 'regulation'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                          }`}>
+                          {doc.doc_type}
+                        </span>
+                        <StatusPill status={doc.status} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
+
+        {/* Getting Started */}
+        {totalDocuments === 0 && (
+          <Card>
+            <div className="p-8 text-center">
+              <div className="text-6xl mb-4">🚀</div>
+              <h3 className="text-xl font-bold mb-2 text-gray-900">Welcome to RegInforce AI</h3>
+              <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                Get started by uploading your regulation and policy documents.
+                Our AI will analyze them to identify compliance gaps and help you maintain regulatory adherence.
+              </p>
+              <div className="flex items-center justify-center gap-4">
+                <Link to="/upload">
+                  <Button variant="primary" size="lg">
+                    Upload Your First Document
+                  </Button>
+                </Link>
+                <Button variant="secondary" size="lg">
+                  Learn More
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
+
+      <NewAnalysisModal
+        isOpen={showNewAnalysis}
+        onClose={() => setShowNewAnalysis(false)}
+      />
     </>
   );
 }

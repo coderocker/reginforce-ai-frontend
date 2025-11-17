@@ -15,8 +15,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div
-      className="relative flex min-h-screen w-full flex-col bg-white overflow-x-hidden"
-      style={{ fontFamily: 'Inter, "Noto Sans", sans-serif' }}
+      className="relative flex min-h-screen w-full flex-col bg-white overflow-x-hidden font-inter"
     >
       <div className="layout-container flex h-full grow flex-col">
         <div className="gap-1 px-6 flex flex-1 justify-center py-5">

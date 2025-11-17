@@ -93,6 +93,23 @@ export interface TrendData {
   summary: string;
 }
 
+export interface AnalysisStats {
+  total_analyses: number;
+  total_completed: number;
+  total_processing: number;
+  total_pending: number;
+  total_error: number;
+  total_gaps: number;
+  total_critical: number;
+  total_high: number;
+  total_medium: number;
+  total_low: number;
+  average_risk_score: number;
+  total_documents: number;
+  total_regulations: number;
+  total_policies: number;
+}
+
 // Comparison & Diff
 export interface GapComparisonItem {
   requirement_id: string;

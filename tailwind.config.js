@@ -15,6 +15,9 @@ export default {
         'background-light': '#f1f2f3',
         'background-dark': '#1F2937',
       },
+      fontFamily: {
+        'inter': ['Inter', '"Noto Sans"', 'sans-serif'],
+      },
     },
   },
   plugins: [],
