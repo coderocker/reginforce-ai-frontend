@@ -1,0 +1,222 @@
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+    />
+
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div class="relative flex h-auto min-h-screen w-full flex-col bg-white group/design-root overflow-x-hidden" style='font-family: Inter, "Noto Sans", sans-serif;'>
+      <div class="layout-container flex h-full grow flex-col">
+        <div class="gap-1 px-6 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col max-w-[920px] flex-1">
+            <h1 class="text-[#131416] tracking-light text-[32px] font-bold leading-tight px-4 text-left pb-3 pt-6">Dashboard</h1>
+            <h2 class="text-[#131416] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Overview</h2>
+            <div class="flex flex-wrap gap-4 p-4">
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#dedfe3]">
+                <p class="text-[#131416] text-base font-medium leading-normal">Total Policies</p>
+                <p class="text-[#131416] tracking-light text-2xl font-bold leading-tight">125</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#dedfe3]">
+                <p class="text-[#131416] text-base font-medium leading-normal">Active Audits</p>
+                <p class="text-[#131416] tracking-light text-2xl font-bold leading-tight">15</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#dedfe3]">
+                <p class="text-[#131416] text-base font-medium leading-normal">Compliance Score</p>
+                <p class="text-[#131416] tracking-light text-2xl font-bold leading-tight">88%</p>
+              </div>
+            </div>
+            <h2 class="text-[#131416] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Recent Activity</h2>
+            <div class="px-4 py-3 @container">
+              <div class="flex overflow-hidden rounded-lg border border-[#dedfe3] bg-white">
+                <table class="flex-1">
+                  <thead>
+                    <tr class="bg-white">
+                      <th class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120 px-4 py-3 text-left text-[#131416] w-[400px] text-sm font-medium leading-normal">
+                        Policy Name
+                      </th>
+                      <th class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240 px-4 py-3 text-left text-[#131416] w-60 text-sm font-medium leading-normal">Status</th>
+                      <th class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360 px-4 py-3 text-left text-[#131416] w-[400px] text-sm font-medium leading-normal">
+                        Last Updated
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-t border-t-[#dedfe3]">
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120 h-[72px] px-4 py-2 w-[400px] text-[#131416] text-sm font-normal leading-normal">
+                        Data Privacy Policy
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Active</span>
+                        </button>
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360 h-[72px] px-4 py-2 w-[400px] text-[#6b7180] text-sm font-normal leading-normal">
+                        2023-11-15
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#dedfe3]">
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120 h-[72px] px-4 py-2 w-[400px] text-[#131416] text-sm font-normal leading-normal">
+                        Financial Reporting Policy
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Draft</span>
+                        </button>
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360 h-[72px] px-4 py-2 w-[400px] text-[#6b7180] text-sm font-normal leading-normal">
+                        2023-11-20
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#dedfe3]">
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120 h-[72px] px-4 py-2 w-[400px] text-[#131416] text-sm font-normal leading-normal">
+                        IT Security Policy
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Approved</span>
+                        </button>
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360 h-[72px] px-4 py-2 w-[400px] text-[#6b7180] text-sm font-normal leading-normal">
+                        2023-11-25
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#dedfe3]">
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120 h-[72px] px-4 py-2 w-[400px] text-[#131416] text-sm font-normal leading-normal">
+                        Employee Code of Conduct
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Active</span>
+                        </button>
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360 h-[72px] px-4 py-2 w-[400px] text-[#6b7180] text-sm font-normal leading-normal">
+                        2023-12-01
+                      </td>
+                    </tr>
+                    <tr class="border-t border-t-[#dedfe3]">
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120 h-[72px] px-4 py-2 w-[400px] text-[#131416] text-sm font-normal leading-normal">
+                        Anti-Money Laundering Policy
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240 h-[72px] px-4 py-2 w-60 text-sm font-normal leading-normal">
+                        <button
+                          class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-full"
+                        >
+                          <span class="truncate">Review</span>
+                        </button>
+                      </td>
+                      <td class="table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360 h-[72px] px-4 py-2 w-[400px] text-[#6b7180] text-sm font-normal leading-normal">
+                        2023-12-05
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <style>
+                          @container(max-width:120px){.table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-120{display: none;}}
+                @container(max-width:240px){.table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-240{display: none;}}
+                @container(max-width:360px){.table-6dcc94ba-27dd-43b2-939a-5d716dac6b40-column-360{display: none;}}
+              </style>
+            </div>
+          </div>
+          <div class="layout-content-container flex flex-col w-[360px]">
+            <h2 class="text-[#131416] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Compliance Assistant</h2>
+            <p class="text-[#6b7180] text-sm font-normal leading-normal pb-3 pt-1 px-4">Analyzing: GDPR Policy v2</p>
+            <div class="flex items-end gap-3 p-4">
+              <div
+                class="bg-center bg-no-repeat aspect-square bg-cover rounded-full w-10 shrink-0"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBmlgXuuM02ImjUBDxdRx-N1dPS1rNV9uzwnYK6EhjZKezODHPqFVqpws9Np-pNk2Z258ViLrzJDUyogdo_V9-CF-agFR0F_ek2CIJz5uVNOictjv1i6q4SYd7pRmvFG-22yOZhoOR_PPkWh4Xk830GNVamx1Sv0zOvC2zMyPtNUe-U4_Mjo8A2YTAYcWY7JZeUiRszGpyCmvJpLwx-nqxf_VlcSfxKyOY2jc4xvZl-FvQ-Pw3C0jtCJedViyuYV4dJ4b4Q3n4mjBt2");'
+              ></div>
+              <div class="flex flex-1 flex-col gap-1 items-start">
+                <p class="text-[#6b7180] text-[13px] font-normal leading-normal max-w-[360px]">AI Assistant</p>
+                <p class="text-base font-normal leading-normal flex max-w-[360px] rounded-lg px-4 py-3 bg-[#f1f2f3] text-[#131416]">
+                  Hello! How can I assist you with your GDPR Policy v2 today?
+                </p>
+              </div>
+            </div>
+            <div class="flex items-end gap-3 p-4 justify-end">
+              <div class="flex flex-1 flex-col gap-1 items-end">
+                <p class="text-[#6b7180] text-[13px] font-normal leading-normal max-w-[360px] text-right">User</p>
+                <p class="text-base font-normal leading-normal flex max-w-[360px] rounded-lg px-4 py-3 bg-[#0f1729] text-white">
+                  Can you summarize the key changes in the latest version?
+                </p>
+              </div>
+              <div
+                class="bg-center bg-no-repeat aspect-square bg-cover rounded-full w-10 shrink-0"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBywvX2GjkOj96zRCia3tLF_RqKLpvJ_9JU3vj1xXCajnCnIFJiqk_6-zRf5xjuWIFk73gnDaIN-DE2ccFlxn_x4FlI5mENNuJX97wA8BxbcIb0yqoZiPZ5kaDjMEcmHtejwY1VINGo6AwBANOuv2y_5nLEr39GVLPJlgsm_yB_j4zVCn5ByBfMl1P2LkCivoq0kiw8HSRc_jBb69BIvC252dN9QeA35PglX7DI43lrfO5gCaOvFq9FPTJVYOo_bB5UM5pCrFZMxkDM");'
+              ></div>
+            </div>
+            <div class="flex items-end gap-3 p-4">
+              <div
+                class="bg-center bg-no-repeat aspect-square bg-cover rounded-full w-10 shrink-0"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCXU1Kes3WnWWVT0zEAHnDmVUmF6DhKdTkGbMBLUIfK9jJ2dWM12RueNC9X3fTiKMyVZbZKnz4iQ2Ku-X8XFMSIp9fd3Qae_FvAI8_pEDIWl_kwatcjdgG_ExW3X4CQN7av-WOYMyp1lGlTKzZ__0aC8guWcpW2uRthEoXXvobvtoXSbZ-063na3Y-OzvvUvIQowmiDUg6MNiPnCer2pOnj2e_0jW3PIhqcHEKLzvxMaOchVbgmu763aDKnRmn-zmOt-S6cjTQsr2hi");'
+              ></div>
+              <div class="flex flex-1 flex-col gap-1 items-start">
+                <p class="text-[#6b7180] text-[13px] font-normal leading-normal max-w-[360px]">AI Assistant</p>
+                <p class="text-base font-normal leading-normal flex max-w-[360px] rounded-lg px-4 py-3 bg-[#f1f2f3] text-[#131416]">
+                  The key changes include updates to data subject rights, enhanced data breach notification procedures, and stricter rules on international data transfers. For more
+                  details, see the full policy document.
+                </p>
+              </div>
+            </div>
+            <div class="p-4">
+              <div class="flex items-stretch justify-between gap-4 rounded-lg">
+                <div class="flex flex-[2_2_0px] flex-col gap-4">
+                  <div class="flex flex-col gap-1">
+                    <p class="text-[#131416] text-base font-bold leading-tight">GDPR Policy v2</p>
+                    <p class="text-[#6b7180] text-sm font-normal leading-normal">View the full policy document</p>
+                  </div>
+                  <button
+                    class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 flex-row-reverse bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-fit"
+                  >
+                    <span class="truncate">View</span>
+                  </button>
+                </div>
+                <div
+                  class="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg flex-1"
+                  style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCWBF-Lnpppq4ng9pUvTGT5Y52Mdp0W1GiDKNKojpCYn8IlwfunqAgo4v9EvfHhqz3D2XBBg69fZCwVoAatpY1Q6rhgbsKvRdbzgV7K3pOWvPcMxooE2kRREVHTcITi6To5gAtGDFfhBoll1AhB0ZjiNfz-VDHqg9rCQXRvjJ82itCISkqU3RSXrRmOl946sHag9_qA8dUqix1-IOfdD65B6ukPNEp_rjSOyJqON7F8oQhT-EIR4ayBNw4GDd9RHC9P_wup9w90ZyHT");'
+                ></div>
+              </div>
+            </div>
+            <div class="flex items-center px-4 py-3 gap-3 @container">
+              <label class="flex flex-col min-w-40 h-12 flex-1">
+                <div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+                  <input
+                    placeholder="Ask about a specific regulation or gap..."
+                    class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#131416] focus:outline-0 focus:ring-0 border-none bg-[#f1f2f3] focus:border-none h-full placeholder:text-[#6b7180] px-4 rounded-r-none border-r-0 pr-2 text-base font-normal leading-normal"
+                    value=""
+                  />
+                  <div class="flex border-none bg-[#f1f2f3] items-center justify-center pr-4 rounded-r-lg border-l-0 !pr-2">
+                    <div class="flex items-center gap-4 justify-end">
+                      <button
+                        class="min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#0f1729] text-white text-sm font-medium leading-normal hidden @[480px]:block"
+                      >
+                        <span class="truncate">Send</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

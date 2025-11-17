@@ -1,0 +1,39 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - reginforce-network
+
+  backend:
+    image: reginforce-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=http://localhost:5173
+    networks:
+      - reginforce-network
+    # Uncomment if you have a backend Dockerfile
+    # build:
+    #   context: ../reginforce-ai-backend
+    #   dockerfile: Dockerfile
+
+networks:
+  reginforce-network:
+    driver: bridge
+# Optional: Add volumes for persistent data
+# volumes:
+#   postgres_data:
+#   redis_data:

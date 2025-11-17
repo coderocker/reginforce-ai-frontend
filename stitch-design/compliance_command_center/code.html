@@ -1,0 +1,178 @@
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+    />
+
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div class="relative flex h-auto min-h-screen w-full flex-col bg-white group/design-root overflow-x-hidden" style='font-family: Inter, "Noto Sans", sans-serif;'>
+      <div class="layout-container flex h-full grow flex-col">
+        <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f1f2f3] px-10 py-3">
+          <div class="flex items-center gap-4 text-[#131416]">
+            <div class="size-4">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M24 45.8096C19.6865 45.8096 15.4698 44.5305 11.8832 42.134C8.29667 39.7376 5.50128 36.3314 3.85056 32.3462C2.19985 28.361 1.76794 23.9758 2.60947 19.7452C3.451 15.5145 5.52816 11.6284 8.57829 8.5783C11.6284 5.52817 15.5145 3.45101 19.7452 2.60948C23.9758 1.76795 28.361 2.19986 32.3462 3.85057C36.3314 5.50129 39.7376 8.29668 42.134 11.8833C44.5305 15.4698 45.8096 19.6865 45.8096 24L24 24L24 45.8096Z"
+                  fill="currentColor"
+                ></path>
+              </svg>
+            </div>
+            <h2 class="text-[#131416] text-lg font-bold leading-tight tracking-[-0.015em]">RegInforce AI</h2>
+          </div>
+          <div class="flex flex-1 justify-end gap-8">
+            <div class="flex items-center gap-9">
+              <a class="text-[#131416] text-sm font-medium leading-normal" href="#">Dashboard</a>
+              <a class="text-[#131416] text-sm font-medium leading-normal" href="#">Reports</a>
+              <a class="text-[#131416] text-sm font-medium leading-normal" href="#">Settings</a>
+            </div>
+            <div
+              class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
+              style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBVmQNQqyY_pGtKDUlKJ29_KyklxiedOb31B_78DD9sQPxy-cSZZSyaqFaCMNGdQp1sPmf2jsLbffBoJqBgRk7-gePQ7o-UkSmP_oxcso0mEd4INwy3Dmun0mZF4uND0TeNjcUZAZOwCWDxtTUv7i_zVrYiAnB9X63jdC3SWON_gqCpLQ8lM4sUHLdMbXeHUEomX1WaR3OiStcY86Ofs_6NhsU_ntG4t-CroBB6SolHKBckT9SEujnNleEeApEhGH_ksOgYxOvZqH_k");'
+            ></div>
+          </div>
+        </header>
+        <div class="gap-1 px-6 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col max-w-[920px] flex-1">
+            <div class="flex flex-wrap justify-between gap-3 p-4">
+              <p class="text-[#131416] tracking-light text-[32px] font-bold leading-tight min-w-72">Compliance Overview</p>
+            </div>
+            <div class="flex flex-wrap gap-4 p-4">
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 bg-[#f1f2f3]">
+                <p class="text-[#131416] text-base font-medium leading-normal">Current Compliance Score</p>
+                <p class="text-[#131416] tracking-light text-2xl font-bold leading-tight">92%</p>
+                <p class="text-[#07883d] text-base font-medium leading-normal">+2%</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 bg-[#f1f2f3]">
+                <p class="text-[#131416] text-base font-medium leading-normal">Active Anomalies</p>
+                <p class="text-[#131416] tracking-light text-2xl font-bold leading-tight">5</p>
+                <p class="text-[#e73c08] text-base font-medium leading-normal">-1</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 bg-[#f1f2f3]">
+                <p class="text-[#131416] text-base font-medium leading-normal">Critical Gaps</p>
+                <p class="text-[#131416] tracking-light text-2xl font-bold leading-tight">2</p>
+                <p class="text-[#e73c08] text-base font-medium leading-normal">-1</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-4 px-4 py-6">
+              <div class="flex min-w-72 flex-1 flex-col gap-2 rounded-lg border border-[#dedfe3] p-6">
+                <p class="text-[#131416] text-base font-medium leading-normal">Compliance Trends Over Time</p>
+                <p class="text-[#131416] tracking-light text-[32px] font-bold leading-tight truncate">92%</p>
+                <div class="flex gap-1">
+                  <p class="text-[#6b7180] text-base font-normal leading-normal">Last 30 Days</p>
+                  <p class="text-[#07883d] text-base font-medium leading-normal">+2%</p>
+                </div>
+                <div class="flex min-h-[180px] flex-1 flex-col gap-8 py-4">
+                  <svg width="100%" height="148" viewBox="-3 0 478 150" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <path
+                      d="M0 109C18.1538 109 18.1538 21 36.3077 21C54.4615 21 54.4615 41 72.6154 41C90.7692 41 90.7692 93 108.923 93C127.077 93 127.077 33 145.231 33C163.385 33 163.385 101 181.538 101C199.692 101 199.692 61 217.846 61C236 61 236 45 254.154 45C272.308 45 272.308 121 290.462 121C308.615 121 308.615 149 326.769 149C344.923 149 344.923 1 363.077 1C381.231 1 381.231 81 399.385 81C417.538 81 417.538 129 435.692 129C453.846 129 453.846 25 472 25V149H326.769H0V109Z"
+                      fill="url(#paint0_linear_1131_5935)"
+                    ></path>
+                    <path
+                      d="M0 109C18.1538 109 18.1538 21 36.3077 21C54.4615 21 54.4615 41 72.6154 41C90.7692 41 90.7692 93 108.923 93C127.077 93 127.077 33 145.231 33C163.385 33 163.385 101 181.538 101C199.692 101 199.692 61 217.846 61C236 61 236 45 254.154 45C272.308 45 272.308 121 290.462 121C308.615 121 308.615 149 326.769 149C344.923 149 344.923 1 363.077 1C381.231 1 381.231 81 399.385 81C417.538 81 417.538 129 435.692 129C453.846 129 453.846 25 472 25"
+                      stroke="#6b7180"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                    ></path>
+                    <defs>
+                      <linearGradient id="paint0_linear_1131_5935" x1="236" y1="1" x2="236" y2="149" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#f1f2f3"></stop>
+                        <stop offset="1" stop-color="#f1f2f3" stop-opacity="0"></stop>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="flex justify-around">
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">Jan</p>
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">Feb</p>
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">Mar</p>
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">Apr</p>
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">May</p>
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">Jun</p>
+                    <p class="text-[#6b7180] text-[13px] font-bold leading-normal tracking-[0.015em]">Jul</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="layout-content-container flex flex-col w-[360px]">
+            <h2 class="text-[#131416] text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Recent Anomaly Alerts</h2>
+            <div class="flex gap-4 bg-white px-4 py-3 justify-between">
+              <div class="flex items-start gap-4">
+                <div
+                  class="text-[#131416] flex items-center justify-center rounded-lg bg-[#f1f2f3] shrink-0 size-12"
+                  data-icon="WarningCircle"
+                  data-size="24px"
+                  data-weight="regular"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                      d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"
+                    ></path>
+                  </svg>
+                </div>
+                <div class="flex flex-1 flex-col justify-center">
+                  <p class="text-[#131416] text-base font-medium leading-normal">Alert 1</p>
+                  <p class="text-[#6b7180] text-sm font-normal leading-normal">Severity: Critical</p>
+                  <p class="text-[#6b7180] text-sm font-normal leading-normal">Unusual spike in high-severity gaps detected</p>
+                </div>
+              </div>
+              <div class="shrink-0"><p class="text-[#6b7180] text-sm font-normal leading-normal">2h ago</p></div>
+            </div>
+            <div class="flex gap-4 bg-white px-4 py-3 justify-between">
+              <div class="flex items-start gap-4">
+                <div
+                  class="text-[#131416] flex items-center justify-center rounded-lg bg-[#f1f2f3] shrink-0 size-12"
+                  data-icon="WarningCircle"
+                  data-size="24px"
+                  data-weight="regular"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                      d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"
+                    ></path>
+                  </svg>
+                </div>
+                <div class="flex flex-1 flex-col justify-center">
+                  <p class="text-[#131416] text-base font-medium leading-normal">Alert 2</p>
+                  <p class="text-[#6b7180] text-sm font-normal leading-normal">Severity: Critical</p>
+                  <p class="text-[#6b7180] text-sm font-normal leading-normal">Unusual spike in high-severity gaps detected</p>
+                </div>
+              </div>
+              <div class="shrink-0"><p class="text-[#6b7180] text-sm font-normal leading-normal">2h ago</p></div>
+            </div>
+            <div class="flex gap-4 bg-white px-4 py-3 justify-between">
+              <div class="flex items-start gap-4">
+                <div
+                  class="text-[#131416] flex items-center justify-center rounded-lg bg-[#f1f2f3] shrink-0 size-12"
+                  data-icon="WarningCircle"
+                  data-size="24px"
+                  data-weight="regular"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+                    <path
+                      d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm-8-80V80a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,172Z"
+                    ></path>
+                  </svg>
+                </div>
+                <div class="flex flex-1 flex-col justify-center">
+                  <p class="text-[#131416] text-base font-medium leading-normal">Alert 3</p>
+                  <p class="text-[#6b7180] text-sm font-normal leading-normal">Severity: Critical</p>
+                  <p class="text-[#6b7180] text-sm font-normal leading-normal">Unusual spike in high-severity gaps detected</p>
+                </div>
+              </div>
+              <div class="shrink-0"><p class="text-[#6b7180] text-sm font-normal leading-normal">2h ago</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

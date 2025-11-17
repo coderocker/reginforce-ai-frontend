@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RegInforce AI - Compliance Trend Analysis</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0f1729",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#14171e",
+                        "surface": "#FFFFFF",
+                        "ai-accent": "#6366F1",
+                        "risk": "#EF4444",
+                        "safe": "#10B981",
+                        "neutral": "#6B7280",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-primary dark:text-white/90">
+<div class="relative flex min-h-screen w-full flex-row">
+<!-- SideNavBar -->
+<nav class="flex h-screen min-h-screen flex-col justify-between border-r border-slate-200 dark:border-slate-800 bg-surface dark:bg-background-dark p-4 w-64 sticky top-0">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 p-2">
+<div class="p-2 bg-ai-accent text-white rounded-lg">
+<span class="material-symbols-outlined !text-2xl" data-icon="Shield">security</span>
+</div>
+<h1 class="text-primary dark:text-white text-lg font-bold">RegInforce AI</h1>
+</div>
+<div class="flex flex-col gap-4 pt-4">
+<div class="flex items-center gap-3 px-3 py-2 text-primary dark:text-white/60 hover:bg-primary/5 dark:hover:bg-white/5 rounded-lg">
+<span class="material-symbols-outlined" data-icon="Dashboard">dashboard</span>
+<p class="text-sm font-medium leading-normal">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 dark:bg-white/10 text-primary dark:text-white font-medium">
+<span class="material-symbols-outlined" data-icon="TrendingUp">trending_up</span>
+<p class="text-sm font-medium leading-normal">Trend Analysis</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-primary dark:text-white/60 hover:bg-primary/5 dark:hover:bg-white/5 rounded-lg">
+<span class="material-symbols-outlined" data-icon="Summarize">summarize</span>
+<p class="text-sm font-medium leading-normal">Reports</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-primary dark:text-white/60 hover:bg-primary/5 dark:hover:bg-white/5 rounded-lg">
+<span class="material-symbols-outlined" data-icon="Gavel">gavel</span>
+<p class="text-sm font-medium leading-normal">Regulations</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-primary dark:text-white/60 hover:bg-primary/5 dark:hover:bg-white/5 rounded-lg">
+<span class="material-symbols-outlined" data-icon="Settings">settings</span>
+<p class="text-sm font-medium leading-normal">Settings</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-3 px-3 py-2 border-t border-slate-200 dark:border-slate-800">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="User profile picture, Alex Doe" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDXNoi5_l7fEuM2Yosfjbrs9Xu417kfcKv6tat49jJgRHaGKMnP7Qr3iI1uQ0s-GYLgGwmqpGj1GsgBfC-_9SHkqJnJI6DiBVVD_iV7XrHYV4yZnIBcipjvQF0uJtCFr_LEiSvyS9A8tMsnUr2mHQlXrx3sdTCGohLoTa3b4WTtN7CqNV8I9kmnlbrUhC1rLCOpXmtGHK-KNsf4dL3ki2pfNWZvrQ4y241zPadJSbOm1F2Oh7qRcUG25qO1e8O2UUNCAMQ6JXatyTqM");'></div>
+<div class="flex flex-col">
+<h1 class="text-primary dark:text-white text-base font-medium leading-normal">Alex Doe</h1>
+<p class="text-neutral dark:text-white/60 text-sm font-normal leading-normal">Compliance Manager</p>
+</div>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-primary dark:text-white/60 hover:bg-primary/5 dark:hover:bg-white/5 rounded-lg">
+<span class="material-symbols-outlined" data-icon="Logout">logout</span>
+<p class="text-sm font-medium leading-normal">Logout</p>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="flex-1 p-8 overflow-y-auto">
+<div class="max-w-7xl mx-auto">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between gap-3 p-4 items-center">
+<h1 class="text-primary dark:text-white text-4xl font-black leading-tight tracking-[-0.033em] min-w-72">Compliance Trend Analysis</h1>
+</div>
+<!-- Main Chart Area -->
+<div class="mt-6 p-6 bg-surface dark:bg-background-dark rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h2 class="text-primary dark:text-white text-base font-medium leading-normal">Compliance Gaps vs. Average Risk Score</h2>
+<p class="text-neutral dark:text-white/60 text-sm">Last 6 Months</p>
+</div>
+<div class="flex items-center gap-4 text-xs text-neutral dark:text-white/60">
+<div class="flex items-center gap-2"><div class="size-3 rounded-sm" style="background-color: #EF4444;"></div>New Gaps</div>
+<div class="flex items-center gap-2"><div class="size-3 rounded-sm" style="background-color: #B91C1C;"></div>Worsened Gaps</div>
+<div class="flex items-center gap-2"><div class="size-3 rounded-sm" style="background-color: #6B7280;"></div>Existing Gaps</div>
+<div class="flex items-center gap-2"><div class="w-4 h-0.5" style="background-color: #00A896;"></div>Risk Score</div>
+</div>
+</div>
+<!-- Chart visualization -->
+<div class="w-full h-[350px] relative">
+<!-- Y-Axis Gaps -->
+<div class="absolute -left-12 top-0 h-full flex flex-col justify-between text-right text-xs text-neutral dark:text-white/60 pr-2">
+<span>120</span><span>90</span><span>60</span><span>30</span><span>0</span>
+</div>
+<!-- Y-Axis Risk Score -->
+<div class="absolute -right-10 top-0 h-full flex flex-col justify-between text-left text-xs text-[#00A896] pl-2">
+<span>5.0</span><span>3.75</span><span>2.5</span><span>1.25</span><span>0</span>
+</div>
+<!-- Grid lines -->
+<div class="absolute top-0 left-0 w-full h-full grid grid-rows-4">
+<div class="border-b border-dashed border-slate-200 dark:border-slate-800"></div>
+<div class="border-b border-dashed border-slate-200 dark:border-slate-800"></div>
+<div class="border-b border-dashed border-slate-200 dark:border-slate-800"></div>
+<div class="border-b border-dashed border-slate-200 dark:border-slate-800"></div>
+</div>
+<!-- Bars & Line -->
+<div class="w-full h-full grid grid-cols-6 gap-6 items-end px-4 relative">
+<!-- Jan -->
+<div class="flex flex-col h-3/4 w-full">
+<div class="h-[10%]" style="background-color: #B91C1C;"></div>
+<div class="h-[15%]" style="background-color: #EF4444;"></div>
+<div class="h-[75%]" style="background-color: #6B7280;"></div>
+</div>
+<!-- Feb -->
+<div class="flex flex-col h-4/5 w-full">
+<div class="h-[12%]" style="background-color: #B91C1C;"></div>
+<div class="h-[20%]" style="background-color: #EF4444;"></div>
+<div class="h-[68%]" style="background-color: #6B7280;"></div>
+</div>
+<!-- Mar -->
+<div class="flex flex-col h-[85%] w-full">
+<div class="h-[8%]" style="background-color: #B91C1C;"></div>
+<div class="h-[18%]" style="background-color: #EF4444;"></div>
+<div class="h-[74%]" style="background-color: #6B7280;"></div>
+</div>
+<!-- Apr -->
+<div class="flex flex-col h-2/3 w-full border-2 border-ai-accent rounded-t-lg">
+<div class="h-[5%]" style="background-color: #B91C1C;"></div>
+<div class="h-[10%]" style="background-color: #EF4444;"></div>
+<div class="h-[85%]" style="background-color: #6B7280;"></div>
+</div>
+<!-- May -->
+<div class="flex flex-col h-1/2 w-full">
+<div class="h-[5%]" style="background-color: #B91C1C;"></div>
+<div class="h-[8%]" style="background-color: #EF4444;"></div>
+<div class="h-[87%]" style="background-color: #6B7280;"></div>
+</div>
+<!-- Jun -->
+<div class="flex flex-col h-[45%] w-full border-2 border-ai-accent rounded-t-lg">
+<div class="h-[3%]" style="background-color: #B91C1C;"></div>
+<div class="h-[7%]" style="background-color: #EF4444;"></div>
+<div class="h-[90%]" style="background-color: #6B7280;"></div>
+</div>
+<!-- Line Chart SVG -->
+<svg class="absolute top-0 left-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 500 200">
+<polyline points="41.6,50 125,40 208.3,20 291.6,60 375,80 458.3,90" style="fill:none;stroke:#00A896;stroke-width:2"></polyline>
+<circle cx="41.6" cy="50" fill="#00A896" r="4"></circle>
+<circle cx="125" cy="40" fill="#00A896" r="4"></circle>
+<circle cx="208.3" cy="20" fill="#00A896" r="4"></circle>
+<circle cx="291.6" cy="60" fill="#00A896" r="4"></circle>
+<circle cx="375" cy="80" fill="#00A896" r="4"></circle>
+<circle cx="458.3" cy="90" fill="#00A896" r="4"></circle>
+</svg>
+</div>
+<!-- X-Axis -->
+<div class="w-full grid grid-cols-6 gap-6 text-center mt-2 px-4">
+<p class="text-neutral dark:text-white/60 text-sm font-bold">Jan</p>
+<p class="text-neutral dark:text-white/60 text-sm font-bold">Feb</p>
+<p class="text-neutral dark:text-white/60 text-sm font-bold">Mar</p>
+<p class="text-primary dark:text-white text-sm font-bold">Apr</p>
+<p class="text-neutral dark:text-white/60 text-sm font-bold">May</p>
+<p class="text-primary dark:text-white text-sm font-bold">Jun</p>
+</div>
+</div>
+</div>
+<!-- Comparison Panel -->
+<div class="mt-8">
+<!-- SectionHeader -->
+<div class="flex justify-between items-center px-4 pb-3 pt-5">
+<h2 class="text-primary dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em]">Comparison: April vs June</h2>
+<button class="text-sm text-ai-accent hover:underline">Clear Selection</button>
+</div>
+<!-- Stats -->
+<div class="flex flex-wrap gap-4 p-4">
+<div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-xl p-6 bg-surface dark:bg-background-dark border border-slate-200 dark:border-slate-800">
+<p class="text-primary dark:text-white text-base font-medium leading-normal">Gap Count</p>
+<p class="text-primary dark:text-white tracking-light text-2xl font-bold leading-tight">-5</p>
+<p class="text-safe text-base font-medium leading-normal">-8.2%</p>
+</div>
+<div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-xl p-6 bg-surface dark:bg-background-dark border border-slate-200 dark:border-slate-800">
+<p class="text-primary dark:text-white text-base font-medium leading-normal">Risk Score</p>
+<p class="text-primary dark:text-white tracking-light text-2xl font-bold leading-tight">-0.12</p>
+<p class="text-safe text-base font-medium leading-normal">-5.1%</p>
+</div>
+<div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-xl p-6 bg-surface dark:bg-background-dark border border-slate-200 dark:border-slate-800">
+<p class="text-primary dark:text-white text-base font-medium leading-normal">New Gaps</p>
+<p class="text-primary dark:text-white tracking-light text-2xl font-bold leading-tight">-3</p>
+<p class="text-safe text-base font-medium leading-normal">-15.0%</p>
+</div>
+<div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-xl p-6 bg-surface dark:bg-background-dark border border-slate-200 dark:border-slate-800">
+<p class="text-primary dark:text-white text-base font-medium leading-normal">Resolved Gaps</p>
+<p class="text-primary dark:text-white tracking-light text-2xl font-bold leading-tight">+8</p>
+<p class="text-safe text-base font-medium leading-normal">+20.0%</p>
+</div>
+</div>
+<!-- Gap Details -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4 px-4">
+<!-- New Gaps -->
+<div class="flex flex-col gap-4">
+<h3 class="text-risk font-bold border-b-2 border-risk pb-2">New Gaps (2)</h3>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">AML transaction monitoring rules not updated for new product type.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: §1020.210</p>
+</div>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">Customer data privacy consent logs are incomplete for EU clients.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: GDPR Art. 7</p>
+</div>
+</div>
+<!-- Resolved Gaps -->
+<div class="flex flex-col gap-4">
+<h3 class="text-safe font-bold border-b-2 border-safe pb-2">Resolved Gaps (8)</h3>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">Quarterly employee compliance training was overdue.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: Internal Policy 3.4</p>
+</div>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">Third-party vendor risk assessment for 'Vendor X' has been completed.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: OCC Bulletin 2013-29</p>
+</div>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">System access review for terminated employees now automated.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: SOC 2 CC6.3</p>
+</div>
+</div>
+<!-- Persistent Gaps -->
+<div class="flex flex-col gap-4">
+<h3 class="text-neutral font-bold border-b-2 border-neutral pb-2">Persistent Gaps (52)</h3>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">Legacy system 'CoreSys' data encryption does not meet FIPS 140-2 standards.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: NYDFS 23 NYCRR 500</p>
+</div>
+<div class="p-4 bg-surface dark:bg-background-dark rounded-lg border border-slate-200 dark:border-slate-800">
+<p class="text-sm font-medium text-primary dark:text-white">Disaster Recovery Plan not tested within the last 12 months.</p>
+<p class="text-xs text-neutral dark:text-white/60 mt-1">Requirement: FFIEC BCP Handbook</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

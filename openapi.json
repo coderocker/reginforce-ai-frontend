@@ -1,0 +1,3443 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RegInforce AI Backend",
+    "description": "\n    ## RegInforce AI - Compliance Gap Analysis API\n    \n    This API provides document management and compliance gap analysis capabilities.\n    \n    ### Features\n    \n    * **Document Management**: Upload and process regulation and policy documents\n    * **Gap Analysis**: AI-powered semantic analysis to identify compliance gaps\n    * **Temporal Tracking**: Track gaps over time with status updates (NEW, EXISTING, RESOLVED, WORSENED)\n    * **Anomaly Detection**: Detect unusual spikes in gaps or risk scores\n    * **Policy Comparison**: Compare document versions and track changes\n    * **Remediation Roadmap**: AI-powered remediation strategies with effort estimation\n    * **Interactive Compliance Assistant**: ChatOps interface for compliance queries\n    * **Caching**: Redis-based caching for fast report retrieval\n    * **Rate Limiting**: Distributed rate limiting for API protection\n    * **Async Processing**: Background task processing for long-running operations\n    \n    ### AI Providers\n    \n    Supports multiple AI providers through adapter pattern:\n    - Google Gemini\n    - OpenAI GPT\n    - Anthropic Claude\n    \n    Configure via `AI_PROVIDER` environment variable.\n    \n    ### Workflow\n    \n    1. Upload regulation document (`POST /documents/upload`)\n    2. Upload policy document (`POST /documents/upload`)\n    3. Wait for processing to complete (check status via `GET /documents/{id}`)\n    4. Run gap analysis (`POST /analysis/run`)\n    5. Retrieve analysis report (`GET /analysis/{report_id}`)\n    ",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/documents/upload": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Upload a document",
+        "description": "Upload a regulation or policy document for processing.\n\n- Accepts PDF and TXT files\n- Processing happens asynchronously in background\n- Returns document metadata immediately",
+        "operationId": "upload_document_api_documents_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_document_api_documents_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Get document by ID",
+        "description": "Retrieve a document by its ID.\n\nReturns document metadata including processing status.",
+        "operationId": "get_document_api_documents__doc_id__get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPublic"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "List all documents",
+        "description": "List all uploaded documents.\n\n- Returns up to `limit` documents\n- Ordered by creation date (newest first)",
+        "operationId": "list_documents_api_documents__get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentPublic"
+                  },
+                  "title": "Response List Documents Api Documents  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/run": {
+      "post": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Run gap analysis",
+        "description": "Trigger gap analysis between regulation and policy documents.\n\n- Both documents must be in PROCESSED status\n- Analysis runs asynchronously in background\n- Returns report metadata immediately",
+        "operationId": "run_analysis_api_analysis_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Analysis started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPublic"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Documents not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/{report_id}": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get analysis report",
+        "description": "Retrieve an analysis report by ID.\n\n- Checks Redis cache first for fast retrieval\n- Falls back to database if not cached\n- Returns report with all identified gaps",
+        "operationId": "get_report_api_analysis__report_id__get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPublic"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/{report_id}/history": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get historical gap analysis",
+        "description": "Retrieve historical gap analysis for the same document pair.\n\nShows how gaps have evolved over time across multiple analyses.",
+        "operationId": "get_history_api_analysis__report_id__history_get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historical analysis data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoricalAnalysis"
+                  },
+                  "title": "Response Get History Api Analysis  Report Id  History Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/{report_id}/trends": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Get compliance trend analysis with anomaly detection",
+        "description": "Get trend analysis showing improvement or degradation over time.\n\nOptionally includes anomaly detection to identify unusual patterns.\n\nUseful for:\n- Visualizing compliance progress\n- Identifying trends (improving, stable, degrading)\n- Detecting unusual spikes or changes\n- Alerting on critical deviations",
+        "operationId": "get_trends_api_analysis__report_id__trends_get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          },
+          {
+            "name": "include_anomalies",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include anomaly detection results",
+              "default": true,
+              "title": "Include Anomalies"
+            },
+            "description": "Include anomaly detection results"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trend analysis data with anomalies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrendData"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/{report_id}/anomalies": {
+      "get": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Detect anomalies in analysis",
+        "description": "Detect statistical anomalies in compliance gap analysis.\n\nAnalyzes historical data to identify unusual spikes in:\n- Total gap count\n- Average risk scores\n- High-severity gap count\n\nUses z-score and IQR-based methods to detect deviations from normal patterns.",
+        "operationId": "detect_anomalies_api_analysis__report_id__anomalies_get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Anomaly detection results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyDetectionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analysis/{report_id}/compare": {
+      "post": {
+        "tags": [
+          "Analysis"
+        ],
+        "summary": "Compare with previous analysis",
+        "description": "Compare current analysis with the previous analysis.\n\nShows:\n- Summary statistics (gap counts, risk scores)\n- Resolved gaps (present in previous, absent in current)\n- New gaps (absent in previous, present in current)\n- Worsened gaps (risk increased)\n- Existing gaps (unchanged)",
+        "operationId": "compare_analyses_api_analysis__report_id__compare_post",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comparison results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No previous report to compare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/policies/{old_id}/diff/{new_id}": {
+      "get": {
+        "tags": [
+          "Policies"
+        ],
+        "summary": "Compare policy versions",
+        "description": "Compare two policy document versions and show differences.\n\nSupports multiple output formats:\n- **json**: Structured diff data (default)\n- **html**: HTML formatted diff for web display\n- **markdown**: Markdown formatted diff for documentation\n- **unified**: Git-style unified diff format\n\nThe comparison shows:\n- Additions (new text in newer version)\n- Deletions (text removed from older version)\n- Modifications (text changed between versions)\n- Overall similarity percentage",
+        "operationId": "get_policy_diff_api_policies__old_id__diff__new_id__get",
+        "parameters": [
+          {
+            "name": "old_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Old Id"
+            }
+          },
+          {
+            "name": "new_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "New Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Output format: json, html, markdown, unified",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format: json, html, markdown, unified"
+          },
+          {
+            "name": "include_unchanged",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include unchanged sections",
+              "default": false,
+              "title": "Include Unchanged"
+            },
+            "description": "Include unchanged sections"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Policy comparison results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDiffPublic"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Documents not ready or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/reports/{report_id}/generate": {
+      "post": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Generate Remediation Plan",
+        "description": "Generate a remediation plan for an analysis report.\n\nCreates AI-powered remediation strategies for all gaps in the report,\nwith effort estimation, prioritization, and dependency analysis.\n\nArgs:\n    report_id: Analysis report ID\n    request: Optional generation parameters (organization size, industry, target days)\n    session: Database session\n    \nReturns:\n    Generated remediation plan with all steps",
+        "operationId": "generate_remediation_plan_api_remediation_reports__report_id__generate_post",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemediationPlanRequest",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemediationPlanPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/reports/{report_id}": {
+      "get": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Get Remediation Plan By Report",
+        "description": "Get the remediation plan for an analysis report.\n\nArgs:\n    report_id: Analysis report ID\n    session: Database session\n    \nReturns:\n    Remediation plan if exists",
+        "operationId": "get_remediation_plan_by_report_api_remediation_reports__report_id__get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemediationPlanPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Get Remediation Plan",
+        "description": "Get a remediation plan by ID.\n\nArgs:\n    plan_id: Remediation plan ID\n    session: Database session\n    \nReturns:\n    Remediation plan",
+        "operationId": "get_remediation_plan_api_remediation_plans__plan_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemediationPlanPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/plans/{plan_id}/dependencies": {
+      "get": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Get Dependency Graph",
+        "description": "Get dependency graph for a remediation plan.\n\nShows relationships between steps, critical path, and parallelizable groups.\n\nArgs:\n    plan_id: Remediation plan ID\n    session: Database session\n    \nReturns:\n    Dependency graph with nodes and relationships",
+        "operationId": "get_dependency_graph_api_remediation_plans__plan_id__dependencies_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependencyGraph"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/plans/{plan_id}/export": {
+      "get": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Export Remediation Plan",
+        "description": "Export remediation plan in various formats.\n\nSupported formats:\n- json: Complete structured data\n- csv: Spreadsheet-compatible format\n- jira: Jira-compatible JSON for import\n- markdown: Human-readable documentation\n\nArgs:\n    plan_id: Remediation plan ID\n    format: Export format (json, csv, jira, markdown)\n    session: Database session\n    \nReturns:\n    Exported plan in requested format",
+        "operationId": "export_remediation_plan_api_remediation_plans__plan_id__export_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(json|csv|jira|markdown)$",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/steps/{step_id}/status": {
+      "patch": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Update Step Status",
+        "description": "Update the status of a remediation step.\n\nAutomatically updates timestamps (started_at, completed_at) based on status transitions.\n\nArgs:\n    step_id: Remediation step ID\n    update: Status update\n    session: Database session\n    \nReturns:\n    Updated remediation step",
+        "operationId": "update_step_status_api_remediation_steps__step_id__status_patch",
+        "parameters": [
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemediationStepUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemediationStepPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/templates": {
+      "get": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "List Policy Templates",
+        "description": "List all policy templates, optionally filtered by category.\n\nArgs:\n    category: Optional category filter (encryption, retention, access_control, etc.)\n    session: Database session\n    \nReturns:\n    List of policy templates ordered by usage count",
+        "operationId": "list_policy_templates_api_remediation_templates_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PolicyTemplatePublic"
+                  },
+                  "title": "Response List Policy Templates Api Remediation Templates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Create Policy Template",
+        "description": "Create a new policy template.\n\nArgs:\n    template_data: Template data\n    session: Database session\n    \nReturns:\n    Created policy template",
+        "operationId": "create_policy_template_api_remediation_templates_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyTemplateCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyTemplatePublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remediation/templates/{template_id}": {
+      "get": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Get Policy Template",
+        "description": "Get a policy template by ID.\n\nArgs:\n    template_id: Template ID\n    session: Database session\n    \nReturns:\n    Policy template",
+        "operationId": "get_policy_template_api_remediation_templates__template_id__get",
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyTemplatePublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "remediation"
+        ],
+        "summary": "Delete Policy Template",
+        "description": "Delete a policy template.\n\nArgs:\n    template_id: Template ID\n    session: Database session\n    \nReturns:\n    No content on success",
+        "operationId": "delete_policy_template_api_remediation_templates__template_id__delete",
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/send": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Send a chat message",
+        "description": "Send a message in a conversation.\n\n- If conversation_id is None, creates a new conversation\n- Validates message scope and safety\n- Classifies intent and extracts entities\n- Generates AI response\n- Returns complete conversation state\n\n**Security:**\n- Blocks off-topic messages (non-compliance queries)\n- Detects jailbreak attempts and prompt injection\n- Auto-suspends conversations after 5 blocked messages in 5 minutes",
+        "operationId": "send_message_api_chat_send_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Message sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid message or blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Conversation suspended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{conversation_id}": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Get conversation details",
+        "description": "Get detailed conversation information.\n\n- Returns conversation metadata\n- Optionally includes full message history\n- Includes current context state",
+        "operationId": "get_conversation_api_chat_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "include_messages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include message history",
+              "default": true,
+              "title": "Include Messages"
+            },
+            "description": "Include message history"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetailPublic"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Delete a conversation",
+        "description": "Delete a conversation (soft delete - archives it).\n\n- Soft delete: sets is_archived = True\n- Preserves data for audit trail\n- Messages remain in database",
+        "operationId": "delete_conversation_api_chat_conversations__conversation_id__delete",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation deleted (soft delete)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/conversations": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "List conversations",
+        "description": "List conversations with filtering and pagination.\n\n- Filter by user_id (multi-tenancy)\n- Optionally include archived/suspended conversations\n- Paginated results (default 50 per page, max 200)\n- Ordered by last_activity (newest first)",
+        "operationId": "list_conversations_api_chat_conversations_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by user ID",
+              "title": "User Id"
+            },
+            "description": "Filter by user ID"
+          },
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include archived conversations",
+              "default": false,
+              "title": "Include Archived"
+            },
+            "description": "Include archived conversations"
+          },
+          {
+            "name": "include_suspended",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include suspended conversations",
+              "default": false,
+              "title": "Include Suspended"
+            },
+            "description": "Include suspended conversations"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{conversation_id}/suspend": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Suspend a conversation",
+        "description": "Suspend a conversation due to misuse.\n\n- Prevents further messages\n- Used for abuse prevention\n- Can be reversed by unsuspending",
+        "operationId": "suspend_conversation_api_chat_conversations__conversation_id__suspend_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation suspended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{conversation_id}/archive": {
+      "post": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Archive a conversation",
+        "description": "Archive a conversation.\n\n- Marks conversation as archived\n- Removes from active list\n- Can be retrieved later if needed",
+        "operationId": "archive_conversation_api_chat_conversations__conversation_id__archive_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/conversations/{conversation_id}/messages": {
+      "get": {
+        "tags": [
+          "Chat"
+        ],
+        "summary": "Get conversation messages",
+        "description": "Get messages for a conversation.\n\n- Returns up to `limit` messages (default 100, max 500)\n- Ordered by timestamp (oldest first)\n- Includes both user and assistant messages",
+        "operationId": "get_conversation_messages_api_chat_conversations__conversation_id__messages_get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "description": "Maximum number of messages",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Maximum number of messages"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessagePublic"
+                  },
+                  "title": "Response Get Conversation Messages Api Chat Conversations  Conversation Id  Messages Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Root",
+        "description": "Health check endpoint.\n\nReturns basic API information.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "description": "Detailed health check endpoint.\n\nReturns health status of all components.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisRequest": {
+        "properties": {
+          "regulation_doc_id": {
+            "type": "integer",
+            "title": "Regulation Doc Id",
+            "description": "ID of the regulation document"
+          },
+          "policy_doc_id": {
+            "type": "integer",
+            "title": "Policy Doc Id",
+            "description": "ID of the policy document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "regulation_doc_id",
+          "policy_doc_id"
+        ],
+        "title": "AnalysisRequest",
+        "description": "Request to trigger gap analysis between regulation and policy documents."
+      },
+      "AnomalyAlertPublic": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Anomaly severity: critical, high, medium, low, normal"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric",
+            "description": "Metric with anomaly: gap_count, risk_score, high_severity_count"
+          },
+          "current_value": {
+            "type": "number",
+            "title": "Current Value",
+            "description": "Current value that triggered alert"
+          },
+          "expected_value": {
+            "type": "number",
+            "title": "Expected Value",
+            "description": "Expected value based on historical data"
+          },
+          "deviation": {
+            "type": "number",
+            "title": "Deviation",
+            "description": "Statistical deviation (z-score or IQR multiplier)"
+          },
+          "threshold_exceeded": {
+            "type": "number",
+            "title": "Threshold Exceeded",
+            "description": "How much the threshold was exceeded"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable description of the anomaly"
+          },
+          "detected_at": {
+            "type": "string",
+            "title": "Detected At",
+            "description": "ISO timestamp when anomaly was detected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "metric",
+          "current_value",
+          "expected_value",
+          "deviation",
+          "threshold_exceeded",
+          "message",
+          "detected_at"
+        ],
+        "title": "AnomalyAlertPublic",
+        "description": "Public representation of an anomaly alert."
+      },
+      "AnomalyDetectionResponse": {
+        "properties": {
+          "report_id": {
+            "type": "integer",
+            "title": "Report Id"
+          },
+          "analysis_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Analysis Date"
+          },
+          "anomalies": {
+            "items": {
+              "$ref": "#/components/schemas/AnomalyAlertPublic"
+            },
+            "type": "array",
+            "title": "Anomalies"
+          },
+          "has_anomalies": {
+            "type": "boolean",
+            "title": "Has Anomalies",
+            "description": "Whether any anomalies were detected",
+            "default": false
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Human-readable summary of anomalies",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "report_id",
+          "analysis_date"
+        ],
+        "title": "AnomalyDetectionResponse",
+        "description": "Response containing anomaly detection results."
+      },
+      "Body_upload_document_api_documents_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File",
+            "description": "PDF or TXT file to upload"
+          },
+          "doc_type": {
+            "$ref": "#/components/schemas/DocumentType",
+            "description": "Document type: regulation or policy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "doc_type"
+        ],
+        "title": "Body_upload_document_api_documents_upload_post"
+      },
+      "ClusterSummary": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of gaps in cluster"
+          },
+          "average_risk": {
+            "type": "number",
+            "title": "Average Risk",
+            "description": "Average risk score"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Topics",
+            "description": "Main topics in cluster"
+          },
+          "severity_distribution": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Severity Distribution",
+            "description": "Count by severity level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "average_risk"
+        ],
+        "title": "ClusterSummary",
+        "description": "Summary of a gap cluster."
+      },
+      "ComparisonResult": {
+        "properties": {
+          "current_report_id": {
+            "type": "integer",
+            "title": "Current Report Id"
+          },
+          "previous_report_id": {
+            "type": "integer",
+            "title": "Previous Report Id"
+          },
+          "comparison_date": {
+            "type": "string",
+            "title": "Comparison Date"
+          },
+          "gap_count_delta": {
+            "type": "integer",
+            "title": "Gap Count Delta",
+            "description": "Change in gap count (negative = improvement)"
+          },
+          "risk_score_delta": {
+            "type": "number",
+            "title": "Risk Score Delta",
+            "description": "Change in average risk score (negative = improvement)"
+          },
+          "new_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapComparisonItem"
+            },
+            "type": "array",
+            "title": "New Gaps",
+            "description": "Gaps introduced in current version"
+          },
+          "resolved_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapComparisonItem"
+            },
+            "type": "array",
+            "title": "Resolved Gaps",
+            "description": "Gaps resolved since previous version"
+          },
+          "persistent_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapComparisonItem"
+            },
+            "type": "array",
+            "title": "Persistent Gaps",
+            "description": "Gaps that remain from previous version"
+          },
+          "improvement_summary": {
+            "type": "string",
+            "title": "Improvement Summary",
+            "description": "Human-readable summary of changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_report_id",
+          "previous_report_id",
+          "comparison_date",
+          "gap_count_delta",
+          "risk_score_delta",
+          "improvement_summary"
+        ],
+        "title": "ComparisonResult",
+        "description": "Result of comparing current report with previous version."
+      },
+      "ConversationActionResponse": {
+        "properties": {
+          "conversation_id": {
+            "type": "integer",
+            "title": "Conversation Id",
+            "description": "Conversation ID"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Action performed: suspend, archive, delete"
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether action succeeded"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Success or error message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "action",
+          "success",
+          "message"
+        ],
+        "title": "ConversationActionResponse",
+        "description": "Response for conversation actions (suspend, archive, delete)."
+      },
+      "ConversationContextPublic": {
+        "properties": {
+          "active_report_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Report Id",
+            "description": "Currently active report ID"
+          },
+          "active_gap_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Active Gap Ids",
+            "description": "Currently active gap IDs"
+          },
+          "active_document_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Active Document Ids",
+            "description": "Currently active document IDs"
+          },
+          "last_intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last classified intent"
+          },
+          "last_entities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Entities",
+            "description": "Last extracted entities"
+          }
+        },
+        "type": "object",
+        "title": "ConversationContextPublic",
+        "description": "Public representation of conversation context."
+      },
+      "ConversationDetailPublic": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationPublic",
+            "description": "Conversation metadata"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessagePublic"
+            },
+            "type": "array",
+            "title": "Messages",
+            "description": "Conversation messages"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ConversationContextPublic",
+            "description": "Conversation context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation",
+          "context"
+        ],
+        "title": "ConversationDetailPublic",
+        "description": "Detailed conversation with messages."
+      },
+      "ConversationListResponse": {
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationPublic"
+            },
+            "type": "array",
+            "title": "Conversations"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total conversation count"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "Current page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "description": "Page size",
+            "default": 50
+          }
+        },
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "ConversationListResponse",
+        "description": "Response for listing conversations."
+      },
+      "ConversationPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "description": "User identifier"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform",
+            "description": "Platform: web, slack, teams, api"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At",
+            "description": "Conversation start time"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At",
+            "description": "Conversation end time"
+          },
+          "message_count": {
+            "type": "integer",
+            "title": "Message Count",
+            "description": "Total message count"
+          },
+          "last_activity": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Activity",
+            "description": "Last activity timestamp"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "title": "Is Archived",
+            "description": "Whether conversation is archived",
+            "default": false
+          },
+          "is_suspended": {
+            "type": "boolean",
+            "title": "Is Suspended",
+            "description": "Whether conversation is suspended due to misuse",
+            "default": false
+          },
+          "blocked_message_count": {
+            "type": "integer",
+            "title": "Blocked Message Count",
+            "description": "Count of blocked messages",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "platform",
+          "started_at",
+          "message_count",
+          "last_activity"
+        ],
+        "title": "ConversationPublic",
+        "description": "Public representation of a conversation."
+      },
+      "DependencyGraph": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyNode"
+            },
+            "type": "array",
+            "title": "Nodes",
+            "description": "All steps as nodes"
+          },
+          "critical_path": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Critical Path",
+            "description": "Step IDs on the critical path"
+          },
+          "critical_path_hours": {
+            "type": "number",
+            "title": "Critical Path Hours",
+            "description": "Total hours on critical path"
+          },
+          "parallelizable_groups": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Parallelizable Groups",
+            "description": "Groups of steps that can be done in parallel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_id",
+          "nodes",
+          "critical_path",
+          "critical_path_hours"
+        ],
+        "title": "DependencyGraph",
+        "description": "Dependency graph for remediation steps."
+      },
+      "DependencyNode": {
+        "properties": {
+          "step_id": {
+            "type": "integer",
+            "title": "Step Id"
+          },
+          "gap_id": {
+            "type": "integer",
+            "title": "Gap Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Short title for the step"
+          },
+          "effort_hours": {
+            "type": "number",
+            "title": "Effort Hours"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RemediationStatus"
+          },
+          "depends_on": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Depends On",
+            "description": "Step IDs this depends on"
+          },
+          "blocks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Blocks",
+            "description": "Step IDs that depend on this"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_id",
+          "gap_id",
+          "title",
+          "effort_hours",
+          "priority",
+          "status"
+        ],
+        "title": "DependencyNode",
+        "description": "A node in the dependency graph."
+      },
+      "DiffSegmentPublic": {
+        "properties": {
+          "change_type": {
+            "type": "string",
+            "title": "Change Type",
+            "description": "Type of change: addition, deletion, modification, unchanged"
+          },
+          "old_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Text",
+            "description": "Original text (for deletions and modifications)"
+          },
+          "new_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Text",
+            "description": "New text (for additions and modifications)"
+          },
+          "line_number_old": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Number Old",
+            "description": "Line number in old document"
+          },
+          "line_number_new": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Number New",
+            "description": "Line number in new document"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context",
+            "description": "Surrounding context for the change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "change_type"
+        ],
+        "title": "DiffSegmentPublic",
+        "description": "Public representation of a policy diff segment."
+      },
+      "DocumentPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "doc_type": {
+            "$ref": "#/components/schemas/DocumentType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProcessingStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "filename",
+          "doc_type",
+          "status",
+          "created_at"
+        ],
+        "title": "DocumentPublic",
+        "description": "Public representation of a document."
+      },
+      "DocumentType": {
+        "type": "string",
+        "enum": [
+          "regulation",
+          "policy"
+        ],
+        "title": "DocumentType",
+        "description": "Type of document: regulation or policy."
+      },
+      "EffortSize": {
+        "type": "string",
+        "enum": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "title": "EffortSize",
+        "description": "T-shirt sizing for remediation effort."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Error message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "description": "Standard error response."
+      },
+      "GapComparisonItem": {
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "title": "Requirement Id",
+            "description": "Regulation requirement identifier"
+          },
+          "requirement_text": {
+            "type": "string",
+            "title": "Requirement Text",
+            "description": "Regulation requirement text"
+          },
+          "gap_description": {
+            "type": "string",
+            "title": "Gap Description",
+            "description": "Description of the gap"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Severity level"
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation",
+            "description": "Recommendation for addressing the gap",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "requirement_id",
+          "requirement_text",
+          "gap_description",
+          "severity"
+        ],
+        "title": "GapComparisonItem",
+        "description": "Gap item for comparison response."
+      },
+      "GapPublic": {
+        "properties": {
+          "policy_section": {
+            "type": "string",
+            "title": "Policy Section",
+            "description": "Text from the internal policy"
+          },
+          "regulation_section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regulation Section",
+            "description": "Related/missing regulation text"
+          },
+          "gap_description": {
+            "type": "string",
+            "title": "Gap Description",
+            "description": "AI-generated summary of the gap"
+          },
+          "risk_score": {
+            "type": "number",
+            "title": "Risk Score",
+            "description": "Numeric risk rating (0.0-1.0)"
+          },
+          "gap_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Type",
+            "description": "Type of gap: semantic, numerical, technical, missing"
+          },
+          "severity_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity Level",
+            "description": "Severity level: low, medium, high, critical"
+          },
+          "severity_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity Score",
+            "description": "Detailed severity score (0.0-1.0)"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GapStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Temporal status: new, existing, resolved, worsened",
+            "default": "new"
+          }
+        },
+        "type": "object",
+        "required": [
+          "policy_section",
+          "gap_description",
+          "risk_score"
+        ],
+        "title": "GapPublic",
+        "description": "Public representation of a compliance gap."
+      },
+      "GapStatus": {
+        "type": "string",
+        "enum": [
+          "new",
+          "existing",
+          "resolved",
+          "worsened"
+        ],
+        "title": "GapStatus",
+        "description": "Status of a gap over time for temporal analysis."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HistoricalAnalysis": {
+        "properties": {
+          "analysis_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Analysis Date"
+          },
+          "report_id": {
+            "type": "integer",
+            "title": "Report Id"
+          },
+          "total_gaps": {
+            "type": "integer",
+            "title": "Total Gaps"
+          },
+          "new_gaps": {
+            "type": "integer",
+            "title": "New Gaps"
+          },
+          "existing_gaps": {
+            "type": "integer",
+            "title": "Existing Gaps"
+          },
+          "worsened_gaps": {
+            "type": "integer",
+            "title": "Worsened Gaps"
+          },
+          "average_risk_score": {
+            "type": "number",
+            "title": "Average Risk Score"
+          },
+          "high_severity_count": {
+            "type": "integer",
+            "title": "High Severity Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "analysis_date",
+          "report_id",
+          "total_gaps",
+          "new_gaps",
+          "existing_gaps",
+          "worsened_gaps",
+          "average_risk_score",
+          "high_severity_count"
+        ],
+        "title": "HistoricalAnalysis",
+        "description": "Historical analysis summary."
+      },
+      "MessagePublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MessageRole",
+            "description": "Role: user, assistant, system"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "Message content"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Classified intent (user messages only)"
+          },
+          "entities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entities",
+            "description": "Extracted entities"
+          },
+          "confidence_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence Score",
+            "description": "Intent classification confidence (0.0-1.0)"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp",
+            "description": "Message timestamp"
+          },
+          "was_blocked": {
+            "type": "boolean",
+            "title": "Was Blocked",
+            "description": "Whether message was blocked by content filter",
+            "default": false
+          },
+          "block_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Reason",
+            "description": "Reason for blocking"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "content",
+          "timestamp"
+        ],
+        "title": "MessagePublic",
+        "description": "Public representation of a chat message."
+      },
+      "MessageRole": {
+        "type": "string",
+        "enum": [
+          "user",
+          "assistant",
+          "system"
+        ],
+        "title": "MessageRole",
+        "description": "Role of the message sender."
+      },
+      "Platform": {
+        "type": "string",
+        "enum": [
+          "web",
+          "slack",
+          "teams",
+          "api"
+        ],
+        "title": "Platform",
+        "description": "Platform where conversation originates."
+      },
+      "PolicyDiffPublic": {
+        "properties": {
+          "old_document_id": {
+            "type": "integer",
+            "title": "Old Document Id"
+          },
+          "new_document_id": {
+            "type": "integer",
+            "title": "New Document Id"
+          },
+          "old_filename": {
+            "type": "string",
+            "title": "Old Filename"
+          },
+          "new_filename": {
+            "type": "string",
+            "title": "New Filename"
+          },
+          "total_additions": {
+            "type": "integer",
+            "title": "Total Additions",
+            "description": "Number of additions"
+          },
+          "total_deletions": {
+            "type": "integer",
+            "title": "Total Deletions",
+            "description": "Number of deletions"
+          },
+          "total_modifications": {
+            "type": "integer",
+            "title": "Total Modifications",
+            "description": "Number of modifications"
+          },
+          "similarity_ratio": {
+            "type": "number",
+            "title": "Similarity Ratio",
+            "description": "Overall similarity (0.0 to 1.0)"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/DiffSegmentPublic"
+            },
+            "type": "array",
+            "title": "Segments",
+            "description": "Detailed change segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_document_id",
+          "new_document_id",
+          "old_filename",
+          "new_filename",
+          "total_additions",
+          "total_deletions",
+          "total_modifications",
+          "similarity_ratio"
+        ],
+        "title": "PolicyDiffPublic",
+        "description": "Public representation of policy version comparison."
+      },
+      "PolicyTemplateCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Category"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "applicable_regulations": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicable Regulations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "content"
+        ],
+        "title": "PolicyTemplateCreate",
+        "description": "Request to create a new policy template."
+      },
+      "PolicyTemplatePublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Category: encryption, retention, access_control, etc."
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "Template text with placeholders"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "applicable_regulations": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicable Regulations",
+            "description": "Regulations this template applies to"
+          },
+          "usage_count": {
+            "type": "integer",
+            "title": "Usage Count",
+            "description": "Number of times this template has been used",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "content"
+        ],
+        "title": "PolicyTemplatePublic",
+        "description": "Public representation of a policy template."
+      },
+      "ProcessingStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "processing",
+          "processed",
+          "error"
+        ],
+        "title": "ProcessingStatus",
+        "description": "Processing status for documents and reports."
+      },
+      "RemediationPlanPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "analysis_report_id": {
+            "type": "integer",
+            "title": "Analysis Report Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "total_effort_hours": {
+            "type": "number",
+            "title": "Total Effort Hours",
+            "description": "Total estimated hours for all steps"
+          },
+          "estimated_completion_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Completion Date",
+            "description": "Estimated completion date"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RemediationStatus",
+            "description": "Overall plan status"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RemediationStepPublic"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "Remediation steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "analysis_report_id",
+          "created_at",
+          "updated_at",
+          "total_effort_hours",
+          "status"
+        ],
+        "title": "RemediationPlanPublic",
+        "description": "Public representation of a remediation plan."
+      },
+      "RemediationPlanRequest": {
+        "properties": {
+          "organization_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Size",
+            "description": "Organization size: small, medium, large, enterprise"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry",
+            "description": "Industry context for tailored recommendations"
+          },
+          "target_completion_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Completion Days",
+            "description": "Target days to complete all remediation"
+          }
+        },
+        "type": "object",
+        "title": "RemediationPlanRequest",
+        "description": "Request to generate a remediation plan."
+      },
+      "RemediationStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "in_progress",
+          "completed",
+          "blocked"
+        ],
+        "title": "RemediationStatus",
+        "description": "Status of remediation plan or step."
+      },
+      "RemediationStepPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "gap_id": {
+            "type": "integer",
+            "title": "Gap Id"
+          },
+          "strategy": {
+            "type": "string",
+            "title": "Strategy",
+            "description": "AI-generated fix strategy"
+          },
+          "implementation_steps": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Implementation Steps",
+            "description": "Step-by-step implementation guide"
+          },
+          "effort_size": {
+            "$ref": "#/components/schemas/EffortSize",
+            "description": "T-shirt sizing: S, M, L, XL"
+          },
+          "effort_hours": {
+            "type": "number",
+            "title": "Effort Hours",
+            "description": "Estimated hours to complete"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority",
+            "description": "Priority (lower = higher priority)"
+          },
+          "dependencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependencies",
+            "description": "Step IDs that must be completed first"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RemediationStatus",
+            "description": "Status: draft, in_progress, completed, blocked"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "policy_diff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Diff",
+            "description": "Suggested policy changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "gap_id",
+          "strategy",
+          "effort_size",
+          "effort_hours",
+          "priority",
+          "status"
+        ],
+        "title": "RemediationStepPublic",
+        "description": "Public representation of a remediation step."
+      },
+      "RemediationStepUpdate": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RemediationStatus",
+            "description": "New status"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional notes about the update"
+          },
+          "gaps_unchanged": {
+            "type": "integer",
+            "title": "Gaps Unchanged"
+          },
+          "current_avg_risk": {
+            "type": "number",
+            "title": "Current Avg Risk"
+          },
+          "previous_avg_risk": {
+            "type": "number",
+            "title": "Previous Avg Risk"
+          },
+          "risk_change_percent": {
+            "type": "number",
+            "title": "Risk Change Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "gaps_unchanged",
+          "current_avg_risk",
+          "previous_avg_risk",
+          "risk_change_percent"
+        ],
+        "title": "RemediationStepUpdate",
+        "description": "Request to update a remediation step status."
+      },
+      "ReportPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "regulation_doc_id": {
+            "type": "integer",
+            "title": "Regulation Doc Id"
+          },
+          "policy_doc_id": {
+            "type": "integer",
+            "title": "Policy Doc Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProcessingStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapPublic"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "clusters": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "$ref": "#/components/schemas/GapPublic"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clusters",
+            "description": "Gaps grouped by topic/cluster"
+          },
+          "cluster_summaries": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ClusterSummary"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Summaries",
+            "description": "Summary statistics for each cluster"
+          },
+          "total_critical": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Critical",
+            "description": "Count of critical severity gaps"
+          },
+          "total_high": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total High",
+            "description": "Count of high severity gaps"
+          },
+          "total_medium": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Medium",
+            "description": "Count of medium severity gaps"
+          },
+          "total_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Low",
+            "description": "Count of low severity gaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "regulation_doc_id",
+          "policy_doc_id",
+          "status",
+          "created_at"
+        ],
+        "title": "ReportPublic",
+        "description": "Public representation of an analysis report."
+      },
+      "SendMessageRequest": {
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id",
+            "description": "Existing conversation ID (None for new conversation)"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "description": "User message"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "description": "User identifier for multi-tenancy"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform",
+            "description": "Platform: web, slack, teams, api",
+            "default": "web"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "SendMessageRequest",
+        "description": "Request to send a message in a conversation."
+      },
+      "SendMessageResponse": {
+        "properties": {
+          "conversation_id": {
+            "type": "integer",
+            "title": "Conversation Id",
+            "description": "Conversation ID"
+          },
+          "message": {
+            "$ref": "#/components/schemas/MessagePublic",
+            "description": "User message that was sent"
+          },
+          "response": {
+            "$ref": "#/components/schemas/MessagePublic",
+            "description": "Assistant response"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ConversationContextPublic",
+            "description": "Updated conversation context"
+          },
+          "follow_up_suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Follow Up Suggestions",
+            "description": "Suggested follow-up questions"
+          },
+          "needs_clarification": {
+            "type": "boolean",
+            "title": "Needs Clarification",
+            "description": "Whether AI needs clarification",
+            "default": false
+          },
+          "clarification_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clarification Message",
+            "description": "Clarification request message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "message",
+          "response",
+          "context"
+        ],
+        "title": "SendMessageResponse",
+        "description": "Response after sending a message."
+      },
+      "TrendData": {
+        "properties": {
+          "report_id": {
+            "type": "integer",
+            "title": "Report Id",
+            "description": "Report ID for which trends were generated"
+          },
+          "total_analyses": {
+            "type": "integer",
+            "title": "Total Analyses"
+          },
+          "trend": {
+            "type": "string",
+            "title": "Trend",
+            "description": "Overall trend: improving, degrading, stable, no_data, insufficient_data"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "Confidence in trend assessment (0.0-1.0)"
+          },
+          "improvement_rate": {
+            "type": "number",
+            "title": "Improvement Rate",
+            "description": "Rate of improvement/degradation"
+          },
+          "current_gaps": {
+            "type": "integer",
+            "title": "Current Gaps"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDataPoint"
+            },
+            "type": "array",
+            "title": "Snapshots",
+            "description": "Historical snapshots"
+          },
+          "anomalies": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnomalyAlertPublic"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anomalies",
+            "description": "Recent anomalies detected"
+          },
+          "has_anomalies": {
+            "type": "boolean",
+            "title": "Has Anomalies",
+            "description": "Whether any anomalies were detected",
+            "default": false
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Human-readable summary of trends",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "report_id",
+          "total_analyses",
+          "trend",
+          "confidence",
+          "improvement_rate",
+          "current_gaps",
+          "snapshots"
+        ],
+        "title": "TrendData",
+        "description": "Trend analysis data with optional anomaly detection."
+      },
+      "TrendDataPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "gap_count": {
+            "type": "integer",
+            "title": "Gap Count"
+          },
+          "risk_score": {
+            "type": "number",
+            "title": "Risk Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "gap_count",
+          "risk_score"
+        ],
+        "title": "TrendDataPoint",
+        "description": "Single data point in trend timeline."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
