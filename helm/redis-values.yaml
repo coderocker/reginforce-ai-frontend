@@ -1,0 +1,136 @@
+# Redis configuration for Hostinger KVM 2 (8GB RAM)
+# Optimized for caching and session storage
+
+global:
+  redis:
+    password: "redis-secure-password-2024"
+
+# Redis master configuration
+master:
+  # Resource allocation for Redis
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"   # 256MB for Redis cache
+      cpu: "200m"       # Up to 20% of 1 CPU core
+  
+  # Persistence for data safety
+  persistence:
+    enabled: true
+    size: "2Gi"        # 2GB for Redis persistence
+    storageClass: "local-path"
+    accessModes:
+      - ReadWriteOnce
+  
+  # Security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  containerSecurityContext:
+    runAsUser: 1001
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+  
+  # Health checks
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 5
+  
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Disable Redis replicas for single server
+replica:
+  replicaCount: 0
+
+# Redis configuration optimizations
+configmap: |
+  # Redis config optimized for 256MB limit and SSD storage
+  maxmemory 200mb
+  maxmemory-policy allkeys-lru
+  
+  # Persistence settings for NVMe SSD
+  save 900 1
+  save 300 10
+  save 60 10000
+  
+  # Network optimizations
+  tcp-keepalive 60
+  timeout 300
+  tcp-backlog 511
+  
+  # Performance tunings
+  hz 10
+  client-output-buffer-limit normal 0 0 0
+  client-output-buffer-limit replica 256mb 64mb 60
+  client-output-buffer-limit pubsub 32mb 8mb 60
+  
+  # Security settings
+  protected-mode yes
+  bind 127.0.0.1 ::1
+  
+  # Logging
+  loglevel notice
+  syslog-enabled no
+  
+  # Database settings for RegInforce AI
+  databases 16
+  
+  # Memory optimization
+  hash-max-ziplist-entries 512
+  hash-max-ziplist-value 64
+  list-max-ziplist-size -2
+  set-max-intset-entries 512
+  zset-max-ziplist-entries 128
+  zset-max-ziplist-value 64
+
+# Sentinel disabled for single server
+sentinel:
+  enabled: false
+
+# Metrics for monitoring
+metrics:
+  enabled: true
+  resources:
+    requests:
+      memory: "16Mi"
+      cpu: "10m"
+    limits:
+      memory: "32Mi"
+      cpu: "25m"
+
+# Network policy
+networkPolicy:
+  enabled: true
+  allowExternal: false
+  ingressNSMatchLabels: {}
+  ingressNSPodMatchLabels: {}
+
+# Service account
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false  # Single replica, no PDB needed
+
+# Security context for init containers
+volumePermissions:
+  enabled: true
+  resources:
+    requests:
+      memory: "16Mi"
+      cpu: "10m"
+    limits:
+      memory: "32Mi"
+      cpu: "25m"

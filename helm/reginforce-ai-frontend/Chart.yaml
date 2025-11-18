@@ -1,0 +1,24 @@
+apiVersion: v2
+name: reginforce-ai-frontend
+description: A Helm chart for RegInforce AI Frontend React application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+keywords:
+  - react
+  - frontend
+  - reginforce
+  - compliance
+
+maintainers:
+  - name: RegInforce Team
+    email: team@reginforce.ai
+
+sources:
+  - https://github.com/coderocker/reginforce-ai-frontend
+
+home: https://reginforce.ai
+
+annotations:
+  category: Application

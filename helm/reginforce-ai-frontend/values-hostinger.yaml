@@ -1,0 +1,213 @@
+# Hostinger KVM 2 optimized configuration for RegInforce AI Frontend
+# Optimized for 2 vCPU, 8GB RAM, 100GB NVMe SSD
+
+# Multiple replicas to utilize both CPU cores efficiently
+replicaCount: 2
+
+image:
+  repository: ghcr.io/coderocker/reginforce-ai-frontend
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# Security context optimized for production
+podSecurityContext:
+  fsGroup: 1001
+  runAsNonRoot: true
+  runAsUser: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Traefik ingress optimized for production on Hostinger
+ingress:
+  enabled: true
+  className: "traefik"
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Enable compression for better performance over internet
+    traefik.ingress.kubernetes.io/router.middlewares: default-compress@kubernetescrd
+    # Security headers
+    traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
+    # Rate limiting to protect server resources
+    traefik.ingress.kubernetes.io/router.middlewares: default-ratelimit@kubernetescrd
+  hosts:
+    - host: reginforce.example.com  # Replace with your actual domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: reginforce-frontend-tls
+      hosts:
+        - reginforce.example.com
+
+# Resource allocation optimized for Hostinger KVM 2
+resources:
+  limits:
+    cpu: 400m        # Max 40% of 1 CPU core per pod (2 pods = 80% total)
+    memory: 384Mi    # Conservative limit allowing for 2-3 pods + system
+  requests:
+    cpu: 100m        # 10% CPU baseline per pod
+    memory: 128Mi    # Reasonable request allowing efficient packing
+
+# Health checks optimized for NVMe SSD performance
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10    # Faster startup on SSD
+  periodSeconds: 15         # Reasonable interval
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 3     # Very fast ready check on SSD
+  periodSeconds: 5          # Frequent checks for responsiveness
+  timeoutSeconds: 2
+  failureThreshold: 2
+
+# Enable autoscaling to utilize full server capacity during traffic spikes
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4              # Max 4 pods for 2 vCPU server (manageable load)
+  targetCPUUtilizationPercentage: 60    # Scale up at 60% to maintain responsiveness
+  targetMemoryUtilizationPercentage: 70 # Scale up at 70% memory
+
+# Volumes optimized for SSD
+volumes:
+  - name: tmp
+    emptyDir:
+      sizeLimit: 100Mi
+  - name: cache
+    emptyDir:
+      sizeLimit: 200Mi
+
+volumeMount:
+  - name: tmp
+    mountPath: /tmp
+  - name: cache
+    mountPath: /var/cache/nginx
+
+# Single node setup - no anti-affinity needed
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Environment variables for production
+env:
+  - name: NODE_ENV
+    value: "production"
+  - name: REACT_APP_API_BASE_URL
+    value: "https://api.reginforce.example.com"  # Replace with your API endpoint
+  - name: NGINX_WORKER_PROCESSES
+    value: "2"  # Match your CPU cores
+  - name: NGINX_WORKER_CONNECTIONS
+    value: "1024"
+
+# ConfigMap for additional nginx optimizations
+configMap:
+  enabled: true
+  data:
+    nginx-custom.conf: |
+      # Hostinger SSD optimizations
+      worker_processes 2;
+      worker_connections 1024;
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+      keepalive_timeout 65;
+      client_max_body_size 10m;
+      client_body_buffer_size 128k;
+      
+      # Gzip compression for better internet performance
+      gzip on;
+      gzip_vary on;
+      gzip_min_length 1024;
+      gzip_comp_level 6;
+      gzip_types
+        application/javascript
+        application/json
+        application/xml
+        text/css
+        text/javascript
+        text/plain
+        text/xml;
+
+# Enable network policy for production security
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from Traefik ingress
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow health checks
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for external APIs if needed
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+
+# Pod disruption budget for rolling updates (important for 2 replicas)
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1    # Always keep at least 1 pod running during updates
+
+# Additional pod labels for monitoring
+podLabels:
+  environment: "production"
+  server: "hostinger-kvm2"
+  
+# Pod annotations for monitoring and optimization
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/health"

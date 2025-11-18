@@ -1,0 +1,157 @@
+# k0s-specific configuration for RegInforce AI Frontend
+# Optimized for k0s with nginx ingress controller
+
+# Single replica for testing, increase for production
+replicaCount: 1
+
+image:
+  repository: ghcr.io/coderocker/reginforce-ai-frontend
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# Security context for k0s
+podSecurityContext:
+  fsGroup: 1001
+  runAsNonRoot: true
+  runAsUser: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Nginx ingress configuration for k0s
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Disable SSL redirect for initial testing
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Uncomment if cert-manager is installed
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: reginforce.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # Uncomment for TLS (requires cert-manager or manual certificate)
+  # tls:
+  #   - secretName: reginforce-frontend-tls
+  #     hosts:
+  #       - reginforce.local
+
+# Reduced resources for lightweight deployment
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Disable autoscaling for single-node testing
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Volumes for non-root user
+volumes:
+  - name: tmp
+    emptyDir: {}
+  - name: cache
+    emptyDir: {}
+
+volumeMount:
+  - name: tmp
+    mountPath: /tmp
+  - name: cache
+    mountPath: /var/cache/nginx
+
+nodeSelector: {}
+
+tolerations: []
+
+# Disable anti-affinity for single-node setups
+affinity: {}
+
+# Environment variables
+env:
+  - name: NODE_ENV
+    value: "production"
+  - name: REACT_APP_API_BASE_URL
+    value: "http://api.reginforce.local"  # Update for your API endpoint
+
+# Disable ConfigMap by default
+configMap:
+  enabled: false
+  data: {}
+
+# Disable network policy for easier initial deployment
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - {}
+
+# Disable PDB for single replica
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1

@@ -1,0 +1,126 @@
+# PostgreSQL configuration for Hostinger KVM 2 (8GB RAM)
+# Optimized for production workload with limited resources
+
+global:
+  postgresql:
+    auth:
+      enablePostgresUser: true
+      postgresPassword: "reginforce-secure-pg-password-2024"
+      username: "reginforce"
+      password: "reginforce-user-password-2024"
+      database: "reginforce_db"
+
+primary:
+  # Resource allocation for PostgreSQL primary
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1536Mi"  # 1.5GB for PostgreSQL on 8GB system
+      cpu: "500m"       # Up to 50% of 1 CPU core
+  
+  # Persistent storage
+  persistence:
+    enabled: true
+    size: "20Gi"        # 20GB for database storage
+    storageClass: "local-path"
+    accessModes:
+      - ReadWriteOnce
+  
+  # Security context
+  podSecurityContext:
+    fsGroup: 1001
+  
+  containerSecurityContext:
+    runAsUser: 1001
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+  
+  # PostgreSQL configuration tuning for 8GB host
+  initdb:
+    scripts:
+      01-tune-postgresql.sql: |
+        -- Optimize PostgreSQL for 8GB RAM host with 1.5GB allocated
+        ALTER SYSTEM SET shared_buffers = '384MB';           -- 25% of allocated memory
+        ALTER SYSTEM SET effective_cache_size = '1GB';       -- Available system cache
+        ALTER SYSTEM SET maintenance_work_mem = '96MB';      -- For maintenance operations
+        ALTER SYSTEM SET work_mem = '16MB';                  -- Per query operation
+        ALTER SYSTEM SET checkpoint_completion_target = 0.9; -- Smooth checkpoints
+        ALTER SYSTEM SET wal_buffers = '16MB';               -- WAL buffer size
+        ALTER SYSTEM SET default_statistics_target = 100;    -- Query planner stats
+        ALTER SYSTEM SET random_page_cost = 1.1;            -- SSD optimization
+        ALTER SYSTEM SET effective_io_concurrency = 200;     -- SSD concurrency
+        ALTER SYSTEM SET max_connections = 100;              -- Reasonable connection limit
+        ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+        SELECT pg_reload_conf();
+      
+      02-create-extensions.sql: |
+        -- Create useful extensions for RegInforce AI
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+        CREATE EXTENSION IF NOT EXISTS "btree_gin";
+        
+      03-setup-database.sql: |
+        -- Setup database schema and indexes for performance
+        \c reginforce_db;
+        
+        -- Enable row level security
+        ALTER DATABASE reginforce_db SET row_security = on;
+        
+        -- Set timezone
+        ALTER DATABASE reginforce_db SET timezone = 'UTC';
+  
+  # Health checks optimized for database
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 6
+  
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Disable read replicas for single server setup
+readReplicas:
+  replicaCount: 0
+
+# Metrics and monitoring
+metrics:
+  enabled: true
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+# Network policy for security
+networkPolicy:
+  enabled: true
+  allowExternal: false
+  ingressNSMatchLabels: {}
+  ingressNSPodMatchLabels: {}
+
+# Service configuration
+service:
+  type: ClusterIP
+  ports:
+    postgresql: 5432
+
+# Volume permissions (for NVMe SSD optimization)
+volumePermissions:
+  enabled: true
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"

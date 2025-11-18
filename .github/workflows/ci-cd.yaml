@@ -1,0 +1,225 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+      - name: Run type check
+        run: pnpm build
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Output image
+        id: image
+        run: |
+          echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}" >> $GITHUB_OUTPUT
+
+  security-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build-and-push.outputs.image }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  deploy-staging:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.reginforce.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.12.0'
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: '1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy to staging
+        run: |
+          helm upgrade --install reginforce-ai-frontend-staging ./helm/reginforce-ai-frontend \
+            --namespace staging \
+            --create-namespace \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            --set ingress.hosts[0].host=staging.reginforce.example.com \
+            --set ingress.tls[0].hosts[0]=staging.reginforce.example.com \
+            --set env[1].value=https://api-staging.reginforce.example.com \
+            --wait --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/reginforce-ai-frontend-staging -n staging
+          kubectl get pods -n staging -l app.kubernetes.io/instance=reginforce-ai-frontend-staging
+
+  deploy-production:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+    environment:
+      name: production
+      url: https://reginforce.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.12.0'
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: '1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy to production
+        run: |
+          helm upgrade --install reginforce-ai-frontend ./helm/reginforce-ai-frontend \
+            --namespace production \
+            --create-namespace \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ github.sha }} \
+            --set ingress.hosts[0].host=reginforce.example.com \
+            --set ingress.tls[0].hosts[0]=reginforce.example.com \
+            --set env[1].value=https://api.reginforce.example.com \
+            --set replicaCount=3 \
+            --set resources.requests.cpu=200m \
+            --set resources.requests.memory=256Mi \
+            --set resources.limits.cpu=1000m \
+            --set resources.limits.memory=1Gi \
+            --wait --timeout=600s
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/reginforce-ai-frontend -n production
+          kubectl get pods -n production -l app.kubernetes.io/instance=reginforce-ai-frontend
+
+  notify:
+    needs: [deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify deployment status
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
