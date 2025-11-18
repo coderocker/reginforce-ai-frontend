@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDocuments, uploadDocument } from "../api";
+import { getDocuments, uploadDocument, uploadNewVersion } from "../api";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
 import type { DocumentType } from "../types/api.js";
 
 export function Documents() {
   const [activeTab, setActiveTab] = useState<DocumentType>("regulation");
+  const [uploadingVersionFor, setUploadingVersionFor] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   const { data: documents, isLoading } = useQuery({
@@ -19,7 +21,9 @@ export function Documents() {
       );
       return hasProcessingDocs ? 5000 : false;
     },
-  }); const uploadMutation = useMutation({
+  });
+
+  const uploadMutation = useMutation({
     mutationFn: ({ file, doc_type }: { file: File; doc_type: DocumentType }) =>
       uploadDocument(file, doc_type),
     onSuccess: (data) => {
@@ -32,12 +36,35 @@ export function Documents() {
     },
   });
 
+  const versionUploadMutation = useMutation({
+    mutationFn: ({ documentId, file }: { documentId: number; file: File }) =>
+      uploadNewVersion(documentId, file),
+    onSuccess: (data) => {
+      console.log('Version upload successful:', data);
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      setUploadingVersionFor(null);
+    },
+    onError: (error) => {
+      console.error('Version upload failed:', error);
+      alert('Version upload failed: ' + error.message);
+      setUploadingVersionFor(null);
+    },
+  });
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     console.log('File selected:', file);
     if (file) {
       console.log('Uploading file:', file.name, 'Type:', activeTab);
       uploadMutation.mutate({ file, doc_type: activeTab });
+    }
+  };
+
+  const handleVersionUpload = (documentId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadingVersionFor(documentId);
+      versionUploadMutation.mutate({ documentId, file });
     }
   };
 
@@ -148,41 +175,88 @@ export function Documents() {
           <table className="flex-1">
             <thead>
               <tr className="bg-white">
-                <th className="px-4 py-3 text-left text-[#131416] w-[400px] text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[300px] text-sm font-medium leading-normal">
                   File
                 </th>
-                <th className="px-4 py-3 text-left text-[#131416] w-[400px] text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[120px] text-sm font-medium leading-normal">
+                  Version
+                </th>
+                <th className="px-4 py-3 text-left text-[#131416] w-[200px] text-sm font-medium leading-normal">
                   Uploaded
                 </th>
-                <th className="px-4 py-3 text-left text-[#131416] w-60 text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[100px] text-sm font-medium leading-normal">
                   Status
+                </th>
+                <th className="px-4 py-3 text-left text-[#131416] w-[200px] text-sm font-medium leading-normal">
+                  Actions
                 </th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                     Loading documents...
                   </td>
                 </tr>
               ) : filteredDocuments?.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                     No documents uploaded yet
                   </td>
                 </tr>
               ) : (
                 filteredDocuments?.map((doc) => (
                   <tr key={doc.id} className="border-t border-t-[#dedfe3]">
-                    <td className="h-[72px] px-4 py-2 text-[#131416] text-sm font-normal leading-normal">
-                      {doc.filename}
+                    <td className="h-[72px] px-4 py-2">
+                      <Link
+                        to={`/documents/${doc.id}`}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {doc.filename}
+                      </Link>
+                      {doc.is_latest === false && (
+                        <span className="ml-2 text-xs text-gray-500">(Old Version)</span>
+                      )}
+                    </td>
+                    <td className="h-[72px] px-4 py-2 text-[#6b7180] text-sm font-normal leading-normal">
+                      {doc.version_number ? `v${doc.version_number}` : ''}
+                      {doc.is_latest && (
+                        <span className="ml-1 text-xs text-green-600 font-medium">Latest</span>
+                      )}
                     </td>
                     <td className="h-[72px] px-4 py-2 text-[#6b7180] text-sm font-normal leading-normal">
                       {new Date(doc.created_at).toLocaleString()}
                     </td>
                     <td className="h-[72px] px-4 py-2">
                       <StatusPill status={doc.status} />
+                    </td>
+                    <td className="h-[72px] px-4 py-2">
+                      <div className="flex gap-2">
+                        {doc.status === "processed" && (doc.is_latest !== false) && (
+                          <>
+                            <input
+                              type="file"
+                              id={`version-upload-${doc.id}`}
+                              className="hidden"
+                              onChange={(e) => handleVersionUpload(doc.id, e)}
+                              accept=".pdf,.txt"
+                              aria-label={`Upload new version for ${doc.filename}`}
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                const input = document.getElementById(`version-upload-${doc.id}`) as HTMLInputElement;
+                                input?.click();
+                              }}
+                              isLoading={uploadingVersionFor === doc.id}
+                            >
+                              {uploadingVersionFor === doc.id ? 'Uploading...' : 'New Version'}
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

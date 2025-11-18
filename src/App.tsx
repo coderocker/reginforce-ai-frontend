@@ -3,6 +3,7 @@ import { ReactQueryProvider } from "./providers/ReactQueryProvider";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { Documents } from "./pages/Documents";
+import { DocumentDetail } from "./pages/DocumentDetail";
 import { Reports } from "./pages/Reports";
 import { ReportsListing } from "./pages/ReportsListing";
 import { Remediation } from "./pages/Remediation";
@@ -15,6 +16,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/documents" element={<Documents />} />
+            <Route path="/documents/:id" element={<DocumentDetail />} />
             <Route path="/reports" element={<ReportsListing />} />
             <Route path="/reports/:reportId" element={<Reports />} />
             <Route path="/remediation/:planId" element={<Remediation />} />

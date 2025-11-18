@@ -259,7 +259,7 @@ export function Dashboard() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          {report.total_high > 0 && (
+                          {(report.total_high || 0) > 0 && (
                             <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
                               {report.total_high} High Risk
                             </span>

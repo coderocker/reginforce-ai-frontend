@@ -1,6 +1,8 @@
 import { apiClient } from "./client";
 import type {
   DocumentPublic,
+  DocumentVersion,
+  DocumentVersionsResponse,
   AnalysisRequest,
   ReportPublic,
   TrendData,
@@ -44,6 +46,30 @@ export const uploadDocument = async (
     }
   );
   return response.data;
+};
+
+export const uploadNewVersion = async (
+  documentId: number,
+  file: File
+): Promise<DocumentPublic> => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await apiClient.post<DocumentPublic>(
+    `/documents/${documentId}/new-version`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+  return response.data;
+};
+
+export const getDocumentVersions = async (documentId: number): Promise<DocumentVersion[]> => {
+  const response = await apiClient.get<DocumentVersionsResponse>(`/documents/${documentId}/versions`);
+  return response.data.versions; // Extract the versions array from the response
 };
 
 // === Analysis ===

@@ -16,6 +16,26 @@ export interface DocumentPublic {
   doc_type: DocumentType;
   status: ProcessingStatus;
   created_at: string;
+  version_number?: number;
+  is_latest?: boolean;
+  parent_document_id?: number | null;
+}
+
+export interface DocumentVersion {
+  id: number;
+  filename: string;
+  version_number: number;
+  is_latest: boolean;
+  status: ProcessingStatus;
+  created_at: string;
+  analysis_count?: number;
+}
+
+export interface DocumentVersionsResponse {
+  document_family_id: number;
+  total_versions: number;
+  current_version: number;
+  versions: DocumentVersion[];
 }
 
 export interface AnalysisRequest {
