@@ -1,53 +1,53 @@
-# Build stage
+# Build stage - Use smaller Node.js image
 FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Install pnpm globally (cache this layer)
+RUN npm install -g pnpm@latest
+
+# Copy package files first (better layer caching)
 COPY package.json pnpm-lock.yaml* ./
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm@latest
-RUN pnpm install --frozen-lockfile
+# Install dependencies (cached if package files haven't changed)
+RUN pnpm install --frozen-lockfile --prod=false
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN pnpm build
+# Build the application with optimizations
+RUN pnpm build && \
+  # Remove source maps and unnecessary files to reduce size
+  find dist -name "*.map" -delete && \
+  # Remove any test files that might have been copied
+  find dist -name "*.test.*" -delete
 
-# Production stage
-FROM nginx:alpine AS production
+# Production stage - Minimal Node.js static server
+FROM node:20-alpine AS production
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Install serve globally for SPA routing support
+RUN npm install -g serve@14 && \
+  addgroup -g 1001 -S appuser && \
+  adduser -S -D -H -u 1001 -G appuser appuser && \
+  # Clean up npm cache
+  npm cache clean --force
 
 # Copy built application from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /app
 
-# Create non-root user
-RUN addgroup -g 1001 -S nginx && \
-  adduser -S -D -H -u 1001 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
 
-# Change ownership of nginx directories
-RUN chown -R nginx:nginx /var/cache/nginx && \
-  chown -R nginx:nginx /var/log/nginx && \
-  chown -R nginx:nginx /etc/nginx/conf.d
+# Switch to non-root user  
+USER appuser
 
-# Touch and set permissions for nginx.pid
-RUN touch /var/run/nginx.pid && \
-  chown -R nginx:nginx /var/run/nginx.pid
-
-# Switch to non-root user
-USER nginx
-
-# Expose port 8080 (non-privileged port)
+# Expose port
 EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start with serve (supports SPA routing out of the box)
+CMD ["serve", "-s", "/app", "-l", "8080"]

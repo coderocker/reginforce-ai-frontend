@@ -127,10 +127,10 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
               >
                 <option value="">Choose a version...</option>
                 {selectedRegulationVersions
-                  .sort((a, b) => (b.version || 0) - (a.version || 0)) // Sort by version descending
+                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0)) // Sort by version descending
                   .map((doc) => (
                     <option key={doc.id} value={doc.id}>
-                      v{doc.version || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
+                      v{doc.version_number || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
                     </option>
                   ))}
               </select>
@@ -176,10 +176,10 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
               >
                 <option value="">Choose a version...</option>
                 {selectedPolicyVersions
-                  .sort((a, b) => (b.version || 0) - (a.version || 0)) // Sort by version descending
+                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0)) // Sort by version descending
                   .map((doc) => (
                     <option key={doc.id} value={doc.id}>
-                      v{doc.version || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
+                      v{doc.version_number || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
                     </option>
                   ))}
               </select>

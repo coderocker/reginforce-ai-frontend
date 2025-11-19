@@ -39,8 +39,9 @@ export function Reports() {
         const result = await getReport(numericReportId);
         console.log('Report fetch successful:', result);
         return result;
-      } catch (err: any) {
-        console.error('Report fetch error:', err.response?.status, err.response?.data, err.message);
+      } catch (err: unknown) {
+        const error = err as { response?: { status?: number; data?: unknown }; message?: string };
+        console.error('Report fetch error:', error.response?.status, error.response?.data, error.message);
         throw err;
       }
     },
@@ -53,11 +54,11 @@ export function Reports() {
     status,
     fetchStatus,
     error: error?.message,
-    errorStatus: (error as any)?.response?.status,
+    errorStatus: (error as { response?: { status?: number } })?.response?.status,
     report: report ? { id: report.id, status: report.status, gaps: report.gaps?.length } : null
   });
 
-  const { data: _trends } = useQuery({
+  useQuery({
     queryKey: ["report-trends", numericReportId],
     queryFn: () => getReportTrends(numericReportId),
     enabled: !!numericReportId,
@@ -118,7 +119,7 @@ export function Reports() {
     if (report.cluster_summaries && Object.keys(report.cluster_summaries).length > 0) {
       // Use AI-generated cluster summaries
       console.log('Using AI cluster summaries');
-      Object.entries(report.cluster_summaries).forEach(([category, _summary]) => {
+      Object.entries(report.cluster_summaries).forEach(([category]) => {
         const categoryGaps = report.gaps.filter((gap) =>
           gap.gap_type?.toLowerCase().includes(category.toLowerCase()) ||
           gap.gap_description?.toLowerCase().includes(category.toLowerCase())
@@ -158,10 +159,10 @@ export function Reports() {
         clusters.push({
           category,
           gaps,
-          criticalCount: gaps.filter((g: any) => g.severity_level === 'critical').length,
-          highCount: gaps.filter((g: any) => g.severity_level === 'high').length,
-          mediumCount: gaps.filter((g: any) => g.severity_level === 'medium').length,
-          lowCount: gaps.filter((g: any) => g.severity_level === 'low').length,
+          criticalCount: gaps.filter((g: GapPublic) => g.severity_level === 'critical').length,
+          highCount: gaps.filter((g: GapPublic) => g.severity_level === 'high').length,
+          mediumCount: gaps.filter((g: GapPublic) => g.severity_level === 'medium').length,
+          lowCount: gaps.filter((g: GapPublic) => g.severity_level === 'low').length,
         });
       });
     }

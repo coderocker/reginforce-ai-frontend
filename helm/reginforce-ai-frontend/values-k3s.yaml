@@ -122,7 +122,7 @@ env:
   - name: NODE_ENV
     value: "production"
   - name: REACT_APP_API_BASE_URL
-    value: "http://api.reginforce.local"  # Update for your API endpoint
+    value: "http://reginforce-api-service.reg-ai-app.svc.cluster.local:8000"  # Internal service URL
 
 # Disable ConfigMap by default
 configMap:

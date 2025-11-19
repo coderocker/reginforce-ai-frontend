@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getDocuments, uploadDocument, uploadNewVersion } from "../api";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
-import type { DocumentType } from "../types/api.js";
+import type { DocumentType, DocumentPublic } from "../types/api.js";
 
 export function Documents() {
   const [activeTab, setActiveTab] = useState<DocumentType>("regulation");
@@ -16,7 +16,7 @@ export function Documents() {
     queryFn: getDocuments,
     refetchInterval: (query) => {
       // Poll every 5 seconds if any document is pending or processing
-      const hasProcessingDocs = query.state.data?.some((doc: any) =>
+      const hasProcessingDocs = query.state.data?.some((doc: DocumentPublic) =>
         doc.status === "pending" || doc.status === "processing"
       );
       return hasProcessingDocs ? 5000 : false;

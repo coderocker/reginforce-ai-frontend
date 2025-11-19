@@ -101,9 +101,9 @@ export function DocumentDetail() {
               {document.doc_type.charAt(0).toUpperCase() + document.doc_type.slice(1)}
             </span>
             <StatusPill status={document.status} />
-            {document.version && (
+            {document.version_number && (
               <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                v{document.version} {document.is_latest && "(Latest)"}
+                v{document.version_number} {document.is_latest && "(Latest)"}
               </span>
             )}
           </div>
@@ -200,11 +200,11 @@ export function DocumentDetail() {
                 <StatusPill status={document.status} />
               </div>
             </div>
-            {document.version && (
+            {document.version_number && (
               <div>
                 <label className="text-sm font-medium text-gray-600">Version</label>
                 <p className="text-gray-900">
-                  v{document.version} {document.is_latest && "(Latest)"}
+                  v{document.version_number} {document.is_latest && "(Latest)"}
                 </p>
               </div>
             )}
