@@ -18,6 +18,8 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: '20'
   PNPM_VERSION: '9.4.0'
+  ENVIRONMENT: 'prod'
+  NAMESPACE: 'prod-regai'
 
 jobs:
   validate-inputs:
@@ -91,13 +93,13 @@ jobs:
 
       - name: Deploy to production
         run: |
-          # Use consistent namespace like ci-cd.yaml
-          NAMESPACE="reg-ai-app"
+          # Use environment-based namespace
+          NAMESPACE="${{ env.NAMESPACE }}"
           RELEASE_NAME="reginforce-frontend"
 
           HOST="reginforce.example.com"
-          # Use internal cluster DNS for API communication like ci-cd.yaml
-          API_URL="http://reginforce-api-service.reg-ai-app.svc.cluster.local:8000"
+          # Use internal cluster DNS for API communication
+          API_URL="http://reginforce-api-service.${{ env.NAMESPACE }}.svc.cluster.local:8000"
 
           echo "🚀 Deploying to production environment"
           echo "📦 Using image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-inputs.outputs.image_tag }}"
@@ -123,7 +125,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          NAMESPACE="reg-ai-app"
+          NAMESPACE="${{ env.NAMESPACE }}"
           RELEASE_NAME="reginforce-frontend"
 
           echo "✅ Verifying deployment..."

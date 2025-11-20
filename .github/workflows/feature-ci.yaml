@@ -11,6 +11,8 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: '20'
   PNPM_VERSION: '9.4.0'
+  ENVIRONMENT: 'dev'
+  NAMESPACE: 'dev-regai'
 
 jobs:
   test:
