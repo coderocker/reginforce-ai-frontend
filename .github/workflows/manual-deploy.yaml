@@ -3,14 +3,6 @@ name: Manual Deploy
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'staging'
-        type: choice
-        options:
-        - staging
-        - production
       image_tag:
         description: 'Docker image tag to deploy (leave empty for latest)'
         required: false
@@ -75,8 +67,8 @@ jobs:
     needs: [validate-inputs, quick-test]
     if: always() && needs.validate-inputs.result == 'success' && (needs.quick-test.result == 'success' || needs.quick-test.result == 'skipped')
     environment:
-      name: ${{ inputs.environment }}
-      url: ${{ inputs.environment == 'production' && 'https://reginforce.example.com' || 'https://staging.reginforce.example.com' }}
+      name: production
+      url: https://reginforce.example.com
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -94,24 +86,20 @@ jobs:
       - name: Configure kubectl
         run: |
           mkdir -p ~/.kube
-          if [ "${{ inputs.environment }}" = "production" ]; then
-            echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
-          else
-            echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
-          fi
+          echo "${{ secrets.K3S_KUBECONFIG }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      - name: Deploy to ${{ inputs.environment }}
+      - name: Deploy to production
         run: |
           # Use consistent namespace like ci-cd.yaml
           NAMESPACE="reg-ai-app"
           RELEASE_NAME="reginforce-frontend"
 
-          HOST="${{ inputs.environment == 'production' && 'reginforce.example.com' || 'staging.reginforce.example.com' }}"
+          HOST="reginforce.example.com"
           # Use internal cluster DNS for API communication like ci-cd.yaml
           API_URL="http://reginforce-api-service.reg-ai-app.svc.cluster.local:8000"
 
-          echo "🚀 Deploying to ${{ inputs.environment }} environment"
+          echo "🚀 Deploying to production environment"
           echo "📦 Using image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-inputs.outputs.image_tag }}"
 
           helm upgrade --install "$RELEASE_NAME" ./helm/reginforce-ai-frontend \
@@ -122,11 +110,15 @@ jobs:
             --set image.tag=${{ needs.validate-inputs.outputs.image_tag }} \
             --set ingress.hosts[0].host="$HOST" \
             --set ingress.tls[0].hosts[0]="$HOST" \
-            --set env[0].name="NODE_ENV" \
-            --set env[0].value="${{ inputs.environment }}" \
-            --set env[1].name="REACT_APP_API_BASE_URL" \
-            --set env[1].value="$API_URL" \
-            ${{ inputs.environment == 'production' && '--set replicaCount=2 --set resources.requests.cpu=50m --set resources.requests.memory=64Mi --set resources.limits.cpu=100m --set resources.limits.memory=128Mi' || '--set replicaCount=1' }} \
+            --set env[0].name="NODE_ENV"
+            --set env[0].value="production"
+            --set env[1].name="REACT_APP_API_BASE_URL"
+            --set env[1].value="$API_URL"
+            --set replicaCount=2 \
+            --set resources.requests.cpu=50m \
+            --set resources.requests.memory=64Mi \
+            --set resources.limits.cpu=100m \
+            --set resources.limits.memory=128Mi \
             --wait --timeout=600s
 
       - name: Verify deployment
