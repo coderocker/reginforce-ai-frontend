@@ -185,8 +185,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.event_name == 'release'
     environment:
-      name: ${{ env.ENVIRONMENT }}
-      url: ${{ env.ENVIRONMENT == 'prod' && 'https://reginforce.example.com' || 'https://dev.reginforce.example.com' }}
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      url: ${{ github.ref_name == 'main' && 'https://reginforce.example.com' || 'https://dev.reginforce.example.com' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
