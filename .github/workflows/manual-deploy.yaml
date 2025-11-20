@@ -24,6 +24,8 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9.4.0'
 
 jobs:
   validate-inputs:
@@ -101,14 +103,13 @@ jobs:
 
       - name: Deploy to ${{ inputs.environment }}
         run: |
-          NAMESPACE="${{ inputs.environment }}"
-          RELEASE_NAME="reginforce-ai-frontend"
-          if [ "${{ inputs.environment }}" = "staging" ]; then
-            RELEASE_NAME="reginforce-ai-frontend-staging"
-          fi
+          # Use consistent namespace like ci-cd.yaml
+          NAMESPACE="reg-ai-app"
+          RELEASE_NAME="reginforce-frontend"
 
           HOST="${{ inputs.environment == 'production' && 'reginforce.example.com' || 'staging.reginforce.example.com' }}"
-          API_URL="${{ inputs.environment == 'production' && 'https://api.reginforce.example.com' || 'https://api-staging.reginforce.example.com' }}"
+          # Use internal cluster DNS for API communication like ci-cd.yaml
+          API_URL="http://reginforce-api-service.reg-ai-app.svc.cluster.local:8000"
 
           echo "🚀 Deploying to ${{ inputs.environment }} environment"
           echo "📦 Using image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-inputs.outputs.image_tag }}"
@@ -116,21 +117,22 @@ jobs:
           helm upgrade --install "$RELEASE_NAME" ./helm/reginforce-ai-frontend \
             --namespace "$NAMESPACE" \
             --create-namespace \
+            --values ./helm/reginforce-ai-frontend/values-k3s.yaml \
             --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
             --set image.tag=${{ needs.validate-inputs.outputs.image_tag }} \
             --set ingress.hosts[0].host="$HOST" \
             --set ingress.tls[0].hosts[0]="$HOST" \
+            --set env[0].name="NODE_ENV" \
+            --set env[0].value="${{ inputs.environment }}" \
+            --set env[1].name="REACT_APP_API_BASE_URL" \
             --set env[1].value="$API_URL" \
-            ${{ inputs.environment == 'production' && '--set replicaCount=3 --set resources.requests.cpu=200m --set resources.requests.memory=256Mi --set resources.limits.cpu=1000m --set resources.limits.memory=1Gi' || '' }} \
+            ${{ inputs.environment == 'production' && '--set replicaCount=2 --set resources.requests.cpu=50m --set resources.requests.memory=64Mi --set resources.limits.cpu=100m --set resources.limits.memory=128Mi' || '--set replicaCount=1' }} \
             --wait --timeout=600s
 
       - name: Verify deployment
         run: |
-          NAMESPACE="${{ inputs.environment }}"
-          RELEASE_NAME="reginforce-ai-frontend"
-          if [ "${{ inputs.environment }}" = "staging" ]; then
-            RELEASE_NAME="reginforce-ai-frontend-staging"
-          fi
+          NAMESPACE="reg-ai-app"
+          RELEASE_NAME="reginforce-frontend"
 
           echo "✅ Verifying deployment..."
           kubectl rollout status deployment/"$RELEASE_NAME" -n "$NAMESPACE" --timeout=300s
