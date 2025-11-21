@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -8,10 +8,11 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
-
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
@@ -19,6 +20,7 @@ import {
 import {
   useSortable,
 } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 
 import ReactFlow, {
   type Node,
@@ -28,7 +30,12 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
 } from "reactflow";
+
 import "reactflow/dist/style.css";
+
+// Define node and edge types outside component to prevent ReactFlow warnings
+const nodeTypes = {};
+const edgeTypes = {};
 
 import {
   getRemediationPlan,
@@ -41,17 +48,135 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatusPill } from "../components/ui/StatusPill";
 
+// Kanban Card Detail Modal Component
+const KanbanCardModal = ({
+  isOpen,
+  onClose,
+  step,
+  onStatusUpdate
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  step: RemediationStepPublic;
+  onStatusUpdate: (stepId: number, status: string) => void;
+}) => {
+  const getEffortColor = (effort: string) => {
+    const colors = {
+      S: "bg-green-100 text-green-800",
+      M: "bg-yellow-100 text-yellow-800",
+      L: "bg-orange-100 text-orange-800",
+      XL: "bg-red-100 text-red-800",
+    };
+    return colors[effort as keyof typeof colors] || "bg-gray-100 text-gray-800";
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto mx-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">{step.title}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+            aria-label="Close modal"
+          >
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={step.status}
+              onChange={(e) => onStatusUpdate(step.id, e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Change step status"
+            >
+              <option value="draft">Todo</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Effort Size</label>
+              <div className={`inline-block px-3 py-1 rounded text-sm ${getEffortColor(step.effort_size)}`}>
+                {step.effort_size}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Effort Hours</label>
+              <div className="text-sm text-gray-900">{step.effort_hours}h</div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+            <p className="text-sm text-gray-900 whitespace-pre-wrap">{step.strategy}</p>
+          </div>
+
+          {step.implementation_steps && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Implementation Steps</label>
+              <p className="text-sm text-gray-900 whitespace-pre-wrap">{step.implementation_steps}</p>
+            </div>
+          )}
+
+          {step.dependencies && step.dependencies.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dependencies</label>
+              <div className="text-sm text-gray-900">
+                {step.dependencies.join(", ")}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
+            {step.started_at && (
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">Started At</label>
+                <div>{new Date(step.started_at).toLocaleDateString()}</div>
+              </div>
+            )}
+            {step.completed_at && (
+              <div>
+                <label className="block font-medium text-gray-700 mb-1">Completed At</label>
+                <div>{new Date(step.completed_at).toLocaleDateString()}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Kanban Column Component
 const KanbanColumn = ({
   title,
   steps,
+  status,
+  onStatusUpdate,
 }: {
   title: string;
   steps: RemediationStepPublic[];
+  status: string;
+  onStatusUpdate: (stepId: number, status: string) => void;
 }) => {
+  const { setNodeRef } = useDroppable({
+    id: `column-${status}`,
+  });
+
   return (
     <Card className="min-h-96">
-      <div className="p-4">
+      <div ref={setNodeRef} className="p-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">{title}</h3>
           <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
@@ -65,6 +190,7 @@ const KanbanColumn = ({
               <KanbanCard
                 key={step.id}
                 step={step}
+                onStatusUpdate={onStatusUpdate}
               />
             ))}
           </div>
@@ -76,17 +202,18 @@ const KanbanColumn = ({
 
 // Sortable Kanban Card Component
 const KanbanCard = ({
-  step
+  step,
+  onStatusUpdate
 }: {
   step: RemediationStepPublic;
+  onStatusUpdate: (stepId: number, status: string) => void;
 }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const {
     attributes,
     listeners,
     setNodeRef,
   } = useSortable({ id: step.id });
-
-
 
   const getEffortColor = (effort: string) => {
     const colors = {
@@ -98,23 +225,76 @@ const KanbanCard = ({
     return colors[effort as keyof typeof colors] || "bg-gray-100 text-gray-800";
   };
 
+  const truncateText = (text: string, maxLength: number = 60) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
+
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className="bg-white border border-gray-200 rounded-lg p-3 cursor-move hover:shadow-md transition-shadow"
-    >
+    <>
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        className="bg-white border border-gray-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow touch-manipulation"
+        onClick={() => {
+          setIsModalOpen(true);
+        }}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <h4 className="font-medium text-gray-900 text-sm flex-1 pr-2">
+            {truncateText(step.title)}
+          </h4>
+          <span className={`text-xs px-2 py-1 rounded flex-shrink-0 ${getEffortColor(step.effort_size)}`}>
+            {step.effort_size}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <StatusPill status={step.status} />
+          <span className="text-xs text-gray-500">
+            {step.effort_hours}h
+          </span>
+        </div>
+      </div>
+
+      <KanbanCardModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        step={step}
+        onStatusUpdate={onStatusUpdate}
+      />
+    </>
+  );
+};
+
+// Drag Overlay Card Component (visual feedback during drag)
+const DragOverlayCard = ({ step }: { step: RemediationStepPublic }) => {
+  const getEffortColor = (effort: string) => {
+    const colors = {
+      S: "bg-green-100 text-green-800",
+      M: "bg-yellow-100 text-yellow-800",
+      L: "bg-orange-100 text-orange-800",
+      XL: "bg-red-100 text-red-800",
+    };
+    return colors[effort as keyof typeof colors] || "bg-gray-100 text-gray-800";
+  };
+
+  const truncateText = (text: string, maxLength: number = 60) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
+
+  return (
+    <div className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-lg transform rotate-3 cursor-grabbing opacity-90">
       <div className="flex items-start justify-between mb-2">
-        <h4 className="font-medium text-gray-900 text-sm">{step.strategy}</h4>
-        <span className={`text-xs px-2 py-1 rounded ${getEffortColor(step.effort_size)}`}>
+        <h4 className="font-medium text-gray-900 text-sm flex-1 pr-2">
+          {truncateText(step.title)}
+        </h4>
+        <span className={`text-xs px-2 py-1 rounded flex-shrink-0 ${getEffortColor(step.effort_size)}`}>
           {step.effort_size}
         </span>
       </div>
-
-      {step.implementation_steps && (
-        <p className="text-xs text-gray-600 mb-2">{step.implementation_steps}</p>
-      )}
 
       <div className="flex items-center justify-between">
         <StatusPill status={step.status} />
@@ -124,16 +304,23 @@ const KanbanCard = ({
       </div>
     </div>
   );
-}; export function Remediation() {
+};
+
+export function Remediation() {
   const { planId } = useParams<{ planId: string }>();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"kanban" | "flow">("kanban");
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [activeId, setActiveId] = useState<string | number | null>(null);
 
   // Sensors for drag and drop
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before dragging starts
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -157,8 +344,6 @@ const KanbanCard = ({
     enabled: !!planId && activeTab === "flow",
   });
 
-
-
   // Update step status mutation
   const updateStatusMutation = useMutation({
     mutationFn: ({ stepId, status }: { stepId: number; status: string }) =>
@@ -168,15 +353,27 @@ const KanbanCard = ({
     },
   });
 
+  // Export format state
+  const [exportFormat, setExportFormat] = useState<string>('pdf');
+
   // Export plan mutation
   const exportPlanMutation = useMutation({
-    mutationFn: () => exportRemediationPlan(Number(planId)),
-    onSuccess: (data) => {
-      // Handle file download
+    mutationFn: (format: string) => exportRemediationPlan(Number(planId), format),
+    onSuccess: (data, format) => {
+      // Handle file download with proper extension
+      const fileExtensions: Record<string, string> = {
+        json: 'json',
+        csv: 'csv',
+        jira: 'json',
+        markdown: 'md',
+        pdf: 'pdf'
+      };
+
+      const extension = fileExtensions[format] || 'txt';
       const url = window.URL.createObjectURL(new Blob([data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `remediation-plan-${planId}.pdf`);
+      link.setAttribute('download', `remediation-plan-${planId}.${extension}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -186,31 +383,113 @@ const KanbanCard = ({
   // Initialize flow nodes and edges when dependency graph loads
   useEffect(() => {
     if (dependencyGraph) {
-      const flowNodes: Node[] = dependencyGraph.nodes.map((node, index) => ({
-        id: node.step_id.toString(),
-        type: 'default',
-        position: { x: (index % 3) * 200, y: Math.floor(index / 3) * 100 },
-        data: {
-          label: node.title,
-          status: node.status,
-        },
-        style: {
-          background: node.status === 'completed' ? '#dcfce7' :
-            node.status === 'in_progress' ? '#fef3c7' : '#f3f4f6',
-          border: '1px solid #d1d5db',
-          borderRadius: '8px',
-        },
-      }));
+      // Create a more intelligent layout based on dependencies
+      const nodeMap = new Map(dependencyGraph.nodes.map(node => [node.step_id, node]));
+      const visited = new Set<number>();
+      const levels: number[][] = [];
+
+      // Assign nodes to levels based on dependency depth
+      const assignLevel = (nodeId: number, level: number = 0) => {
+        if (visited.has(nodeId)) return;
+        visited.add(nodeId);
+
+        if (!levels[level]) levels[level] = [];
+        levels[level].push(nodeId);
+
+        const node = nodeMap.get(nodeId);
+        if (node) {
+          node.blocks.forEach(blockedId => {
+            if (!visited.has(blockedId)) {
+              assignLevel(blockedId, level + 1);
+            }
+          });
+        }
+      };
+
+      // Start with nodes that have no dependencies
+      dependencyGraph.nodes
+        .filter(node => node.depends_on.length === 0)
+        .forEach(node => assignLevel(node.step_id));
+
+      // Handle remaining nodes
+      dependencyGraph.nodes.forEach(node => {
+        if (!visited.has(node.step_id)) {
+          assignLevel(node.step_id);
+        }
+      });
+
+      const flowNodes: Node[] = dependencyGraph.nodes.map((node) => {
+        const level = levels.findIndex(levelNodes => levelNodes.includes(node.step_id));
+        const positionInLevel = levels[level]?.indexOf(node.step_id) || 0;
+
+        return {
+          id: node.step_id.toString(),
+          type: 'default',
+          position: {
+            x: level * 250,
+            y: positionInLevel * 120 + 50
+          },
+          data: {
+            label: `${node.title}\n(${node.effort_hours}h)`,
+            status: node.status,
+            priority: node.priority,
+          },
+          style: {
+            background: node.status === 'completed' ? '#dcfce7' :
+              node.status === 'in_progress' ? '#fef3c7' :
+                node.status === 'blocked' ? '#fecaca' : '#f3f4f6',
+            border: dependencyGraph.critical_path.includes(node.step_id)
+              ? '2px solid #ef4444' : '1px solid #d1d5db',
+            borderRadius: '8px',
+            padding: '12px',
+            minWidth: '180px',
+            fontSize: '12px',
+            textAlign: 'center',
+          },
+        };
+      });
 
       const flowEdges: Edge[] = [];
+
+      // Create dependency edges (depends_on)
       dependencyGraph.nodes.forEach(node => {
-        node.depends_on.forEach(depId => {
+        node.depends_on.forEach((dependencyId) => {
           flowEdges.push({
-            id: `${depId}-${node.step_id}`,
-            source: depId.toString(),
+            id: `dep-${dependencyId}-${node.step_id}`,
+            source: dependencyId.toString(),
             target: node.step_id.toString(),
             type: 'smoothstep',
-            animated: node.status !== 'completed',
+            style: {
+              stroke: '#6b7280',
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: 'arrowclosed',
+              color: '#6b7280',
+            },
+            label: 'depends on',
+            labelStyle: { fontSize: '10px', fill: '#6b7280' },
+          });
+        });
+
+        // Create blocking edges (blocks)
+        node.blocks.forEach((blockedId) => {
+          flowEdges.push({
+            id: `block-${node.step_id}-${blockedId}`,
+            source: node.step_id.toString(),
+            target: blockedId.toString(),
+            type: 'smoothstep',
+            style: {
+              stroke: '#dc2626',
+              strokeWidth: 2,
+              strokeDasharray: '5,5',
+            },
+            markerEnd: {
+              type: 'arrowclosed',
+              color: '#dc2626',
+            },
+            label: 'blocks',
+            labelStyle: { fontSize: '10px', fill: '#dc2626' },
           });
         });
       });
@@ -218,182 +497,258 @@ const KanbanCard = ({
       setNodes(flowNodes);
       setEdges(flowEdges);
     }
-  }, [dependencyGraph, setNodes, setEdges]); const handleDragEnd = (event: DragEndEvent) => {
+  }, [dependencyGraph, setNodes, setEdges]);
+
+  // Handle drag start for kanban
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
+
+  // Handle drag end for kanban
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
 
-    if (!over || !plan) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
-    const activeStep = plan.steps.find(s => s.id === active.id);
+    // Logic to update step status based on the column it was dropped into
+    const activeStep = plan?.steps.find(step => step.id === Number(active.id));
     if (!activeStep) return;
 
-    // Determine new status based on drop zone
-    // This is a simplified version - you might want more sophisticated logic
-    const newStatus = over.id as string;
+    // Determine new status based on drop target
+    const overId = over.id;
+    let newStatus: string;
 
-    if (activeStep.status !== newStatus) {
+    // Check if dropped over a column
+    if (typeof overId === 'string' && overId.startsWith('column-')) {
+      newStatus = overId.replace('column-', '');
+    }
+    // If dropped over another card, find the column that card is in
+    else if (typeof overId === 'number') {
+      const overStep = plan?.steps.find(step => step.id === overId);
+      newStatus = overStep?.status || activeStep.status;
+    }
+    // Fallback: keep same status
+    else {
+      newStatus = activeStep.status;
+    }
+
+    // Only update if status actually changed
+    if (newStatus !== activeStep.status) {
       updateStatusMutation.mutate({
-        stepId: activeStep.id,
+        stepId: Number(active.id),
         status: newStatus
       });
     }
   };
 
-
-
   if (planLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading remediation plan...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   if (planError || !plan) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Plan Not Found
-          </h2>
-          <p className="text-gray-600 mb-4">
-            The remediation plan could not be loaded.
-          </p>
-          <Link to="/reports">
-            <Button variant="primary">Back to Reports</Button>
-          </Link>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">Plan Not Found</h1>
+        <p className="text-gray-600 mb-8">The remediation plan you're looking for doesn't exist.</p>
+        <Link to="/dashboard" className="text-blue-600 hover:text-blue-800">
+          Return to Dashboard
+        </Link>
       </div>
     );
   }
 
-  // Group steps by status for Kanban view
+  // Group steps by status for kanban view
   const stepsByStatus = {
-    draft: plan.steps.filter(s => s.status === 'draft'),
-    in_progress: plan.steps.filter(s => s.status === 'in_progress'),
-    completed: plan.steps.filter(s => s.status === 'completed'),
-    blocked: plan.steps.filter(s => s.status === 'blocked'),
+    draft: plan.steps.filter(step => step.status === 'draft'),
+    in_progress: plan.steps.filter(step => step.status === 'in_progress'),
+    completed: plan.steps.filter(step => step.status === 'completed'),
+    blocked: plan.steps.filter(step => step.status === 'blocked'),
   };
 
   return (
-    <>
-      <header className="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f1f2f3] px-10 py-3">
-        <div className="flex items-center gap-4 text-[#131416]">
-          <Link to="/reports" className="text-blue-600 hover:text-blue-800">
-            ← Back to Reports
-          </Link>
-          <h2 className="text-[#131416] text-lg font-bold leading-tight tracking-[-0.015em]">
-            Remediation Plan #{plan.id}
-          </h2>
-          <StatusPill status={plan.status} />
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => exportPlanMutation.mutate()}
-            disabled={exportPlanMutation.isPending}
-          >
-            {exportPlanMutation.isPending ? 'Exporting...' : 'Export PDF'}
-          </Button>
-          <div className="flex border border-gray-300 rounded-lg">
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-l-lg ${activeTab === 'kanban'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              onClick={() => setActiveTab('kanban')}
-            >
-              Kanban
-            </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium rounded-r-lg ${activeTab === 'flow'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              onClick={() => setActiveTab('flow')}
-            >
-              Flow Diagram
-            </button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 mb-2 inline-block">
+              ← Back to Dashboard
+            </Link>
+            <h1 className="text-3xl font-bold text-gray-900">Remediation Plan</h1>
+            <p className="text-gray-600 mt-2">
+              Total effort: {plan.total_effort_hours} hours • Status: {plan.status}
+            </p>
           </div>
-        </div>
-      </header>
-
-      <div className="p-6">
-        {/* Plan Overview */}
-        <Card className="mb-6">
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">Total Steps</h3>
-                <p className="text-2xl font-bold text-gray-900">{plan.steps.length}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">Completed</h3>
-                <p className="text-2xl font-bold text-green-600">{stepsByStatus.completed.length}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">In Progress</h3>
-                <p className="text-2xl font-bold text-blue-600">{stepsByStatus.in_progress.length}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-600">Blocked</h3>
-                <p className="text-2xl font-bold text-red-600">{stepsByStatus.blocked.length}</p>
-              </div>
-            </div>
-
-
-          </div>
-        </Card>
-
-        {/* Kanban Board */}
-        {activeTab === 'kanban' && (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <KanbanColumn
-                title="To Do"
-                steps={stepsByStatus.draft}
-              />
-              <KanbanColumn
-                title="In Progress"
-                steps={stepsByStatus.in_progress}
-              />
-              <KanbanColumn
-                title="Completed"
-                steps={stepsByStatus.completed}
-              />
-              <KanbanColumn
-                title="Blocked"
-                steps={stepsByStatus.blocked}
-              />
-            </div>
-          </DndContext>
-        )}
-
-        {/* Dependency Flow Diagram */}
-        {activeTab === 'flow' && (
-          <Card>
-            <div className="h-96">
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                fitView
+          <div className="flex gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <label htmlFor="export-format" className="text-sm font-medium text-gray-700">
+                Format:
+              </label>
+              <select
+                id="export-format"
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={exportPlanMutation.isPending}
               >
-                <Controls />
-                <Background />
-              </ReactFlow>
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+                <option value="jira">JIRA</option>
+                <option value="markdown">Markdown</option>
+                <option value="pdf">PDF</option>
+              </select>
+              <Button
+                onClick={() => exportPlanMutation.mutate(exportFormat)}
+                disabled={exportPlanMutation.isPending}
+                variant="secondary"
+              >
+                {exportPlanMutation.isPending ? 'Exporting...' : 'Export Plan'}
+              </Button>
             </div>
-          </Card>
-        )}
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex space-x-1 mt-6 bg-gray-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab("kanban")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "kanban"
+              ? "bg-white text-gray-900 shadow"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
+          >
+            Kanban View
+          </button>
+          <button
+            onClick={() => setActiveTab("flow")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "flow"
+              ? "bg-white text-gray-900 shadow"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
+          >
+            Dependency Flow
+          </button>
+        </div>
       </div>
-    </>
+
+      {/* Kanban View */}
+      {activeTab === "kanban" && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <KanbanColumn
+              title="To Do"
+              status="draft"
+              steps={stepsByStatus.draft}
+              onStatusUpdate={(stepId: number, status: string) => {
+                updateStatusMutation.mutate({ stepId, status });
+              }}
+            />
+            <KanbanColumn
+              title="In Progress"
+              status="in_progress"
+              steps={stepsByStatus.in_progress}
+              onStatusUpdate={(stepId: number, status: string) => {
+                updateStatusMutation.mutate({ stepId, status });
+              }}
+            />
+            <KanbanColumn
+              title="Completed"
+              status="completed"
+              steps={stepsByStatus.completed}
+              onStatusUpdate={(stepId: number, status: string) => {
+                updateStatusMutation.mutate({ stepId, status });
+              }}
+            />
+            <KanbanColumn
+              title="Blocked"
+              status="blocked"
+              steps={stepsByStatus.blocked}
+              onStatusUpdate={(stepId: number, status: string) => {
+                updateStatusMutation.mutate({ stepId, status });
+              }}
+            />
+          </div>
+
+          <DragOverlay>
+            {activeId ? (
+              <DragOverlayCard
+                step={plan?.steps.find(step => step.id === Number(activeId))!}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+
+      {/* Flow View */}
+      {activeTab === "flow" && (
+        <div className="h-[600px] border border-gray-300 rounded-lg relative">
+          {/* Flow Legend */}
+          <div className="absolute top-2 left-2 z-10 bg-white p-3 rounded-lg shadow-md border text-xs">
+            <h4 className="font-semibold mb-2">Legend</h4>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-gray-100 border border-gray-300 rounded"></div>
+                <span>Todo</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-yellow-100 border border-gray-300 rounded"></div>
+                <span>In Progress</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-100 border border-gray-300 rounded"></div>
+                <span>Completed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-100 border border-gray-300 rounded"></div>
+                <span>Blocked</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-gray-500"></div>
+                <span>Dependency</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 border-b border-dashed border-red-600"></div>
+                <span>Blocks</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-red-500 bg-transparent rounded"></div>
+                <span>Critical Path</span>
+              </div>
+            </div>
+          </div>
+
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            attributionPosition="bottom-right"
+            defaultEdgeOptions={{
+              animated: false,
+              style: { strokeWidth: 2 }
+            }}
+          >
+            <Controls position="bottom-left" />
+            <Background />
+          </ReactFlow>
+        </div>
+      )}
+    </div>
   );
 }

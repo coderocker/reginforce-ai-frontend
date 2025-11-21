@@ -170,6 +170,7 @@ export interface PolicyDiffPublic {
 export interface RemediationStepPublic {
   id: number;
   gap_id: number;
+  title: string;
   strategy: string;
   implementation_steps?: string | null;
   effort_size: EffortSize;
