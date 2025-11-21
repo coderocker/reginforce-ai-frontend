@@ -29,6 +29,7 @@ import ReactFlow, {
   Background,
   useNodesState,
   useEdgesState,
+  MarkerType,
 } from "reactflow";
 
 import "reactflow/dist/style.css";
@@ -464,7 +465,7 @@ export function Remediation() {
               strokeWidth: 2,
             },
             markerEnd: {
-              type: 'arrowclosed',
+              type: MarkerType.ArrowClosed,
               color: '#6b7280',
             },
             label: 'depends on',
@@ -485,7 +486,7 @@ export function Remediation() {
               strokeDasharray: '5,5',
             },
             markerEnd: {
-              type: 'arrowclosed',
+              type: MarkerType.ArrowClosed,
               color: '#dc2626',
             },
             label: 'blocks',

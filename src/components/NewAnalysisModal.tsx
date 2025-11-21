@@ -8,9 +8,10 @@ import type { DocumentPublic } from "../types/api";
 interface NewAnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
-export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalProps) {
+export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnalysisModalProps) {
   const [selectedRegulation, setSelectedRegulation] = useState<string>("");
   const [regulationVersionId, setRegulationVersionId] = useState<number | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<string>("");
@@ -51,6 +52,7 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
     onSuccess: (response) => {
       console.log("Analysis started:", response);
       onClose();
+      onSuccess?.(); // Call the optional refresh callback
       navigate(`/reports/${response.id}`);
     },
     onError: (error) => {

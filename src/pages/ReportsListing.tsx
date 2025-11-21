@@ -1,12 +1,15 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getReports, getAnalysisStats } from "../api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatusPill } from "../components/ui/StatusPill";
+import NewAnalysisModal from "../components/NewAnalysisModal";
 
 export function ReportsListing() {
+  const queryClient = useQueryClient();
+
   const {
     data: reports = [],
     isLoading: reportsLoading,
@@ -29,6 +32,8 @@ export function ReportsListing() {
 
   // Status filter state
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  // New Analysis modal state
+  const [showNewAnalysis, setShowNewAnalysis] = useState(false);
 
   // Filter reports based on status
   const filteredReports = React.useMemo(() => {
@@ -139,11 +144,12 @@ export function ReportsListing() {
             View and manage your compliance analysis reports
           </p>
         </div>
-        <Link to="/">
-          <Button variant="primary">
-            New Analysis
-          </Button>
-        </Link>
+        <Button
+          variant="primary"
+          onClick={() => setShowNewAnalysis(true)}
+        >
+          New Analysis
+        </Button>
       </div>
 
       {/* Summary Stats */}
@@ -361,6 +367,16 @@ export function ReportsListing() {
           )}
         </div>
       )}
+
+      <NewAnalysisModal
+        isOpen={showNewAnalysis}
+        onClose={() => setShowNewAnalysis(false)}
+        onSuccess={() => {
+          // Invalidate and refetch reports data
+          queryClient.invalidateQueries({ queryKey: ['reports'] });
+          queryClient.invalidateQueries({ queryKey: ['analysis-stats', 'reports-listing'] });
+        }}
+      />
     </div>
   );
 }

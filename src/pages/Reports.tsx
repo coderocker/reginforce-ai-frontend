@@ -47,6 +47,13 @@ export function Reports() {
     },
     enabled: !!numericReportId && !isNaN(numericReportId),
     retry: 1,
+    // Poll every 3 seconds when analysis is in progress
+    refetchInterval: (query) => {
+      const reportData = query?.state?.data;
+      const isStillProcessing = reportData?.status === 'processing' || reportData?.status === 'pending';
+      return isStillProcessing ? 3000 : false;
+    },
+    refetchIntervalInBackground: false,
   });
 
   console.log('Query state:', {
@@ -246,22 +253,6 @@ export function Reports() {
           </div>
         )}
       </div>
-
-      {/* Debug Information */}
-      {import.meta.env.DEV && (
-        <Card>
-          <div className="p-4 bg-gray-50 text-sm font-mono">
-            <div><strong>Debug Info:</strong></div>
-            <div>Report ID: {numericReportId}</div>
-            <div>Has Report: {hasReport ? 'Yes' : 'No'}</div>
-            <div>Report Status: {report?.status || 'N/A'}</div>
-            <div>Query Status: {status}</div>
-            <div>Is Loading: {isLoading ? 'Yes' : 'No'}</div>
-            <div>Gaps Count: {report?.gaps?.length || 0}</div>
-            {error && <div className="text-red-600">Error: {String(error)}</div>}
-          </div>
-        </Card>
-      )}
 
       {/* Processing Status */}
       {hasReport && isProcessing && (
