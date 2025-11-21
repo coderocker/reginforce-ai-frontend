@@ -60,7 +60,7 @@ Protection Rules:
 ├── Required reviewers: Enabled
 ├── Deployment branches: main only  
 ├── Environment secrets: KUBECONFIG
-└── Environment variables: APP_URL
+└── Environment variables: APP_BASE_URL
 ```
 
 ### **Benefits**

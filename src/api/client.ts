@@ -1,7 +1,10 @@
 import axios from "axios";
 
+// Use VITE environment variable for API URL, fallback to proxy for development
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || "/api";
+
 export const apiClient = axios.create({
-  baseURL: "/api",
+  baseURL: apiBaseURL,
   headers: {
     "Content-Type": "application/json",
   },

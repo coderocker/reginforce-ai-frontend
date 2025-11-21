@@ -80,7 +80,7 @@ jobs:
     if: always() && github.ref == 'refs/heads/main' && needs.validate-inputs.result == 'success' && (needs.quick-test.result == 'success' || needs.quick-test.result == 'skipped')
     environment:
       name: prod
-      url: ${{ vars.APP_URL || 'http://reginforceai.mahahrishi.com' }}
+      url: ${{ vars.APP_BASE_URL || 'http://reginforceai.mahahrishi.com' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -114,10 +114,12 @@ jobs:
           RELEASE_NAME="reginforce-frontend"
 
           HOST="reginforceai.mahahrishi.com"
-          # Use internal cluster DNS for API communication
-          API_URL="http://reginforce-api-service.${{ env.NAMESPACE }}.svc.cluster.local:8000"
+          # Use GitHub environment variable for API communication
+          API_BASE_URL="${{ vars.API_BASE_URL }}"
 
           echo "🚀 Deploying to production environment"
+          echo "🌐 Host: $HOST"
+          echo "🔗 API Base URL: $API_BASE_URL"
           echo "📦 Using image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-inputs.outputs.image_tag }}"
 
           helm upgrade --install "$RELEASE_NAME" ./helm/reginforce-ai-frontend \
@@ -130,8 +132,8 @@ jobs:
             --set ingress.tls[0].hosts[0]="$HOST" \
             --set env[0].name="NODE_ENV"
             --set env[0].value="production"
-            --set env[1].name="REACT_APP_API_BASE_URL"
-            --set env[1].value="$API_URL"
+            --set env[1].name="VITE_API_BASE_URL"
+            --set env[1].value="$API_BASE_URL"
             --set replicaCount=2 \
             --set resources.requests.cpu=50m \
             --set resources.requests.memory=64Mi \

@@ -188,7 +188,7 @@ See [`docs/branch-protection-strategy.md`](./docs/branch-protection-strategy.md)
 Create a `.env.local` file for local development:
 
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000
 VITE_APP_NAME="RegInforce AI"
 ```
 

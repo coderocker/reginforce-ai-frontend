@@ -44,9 +44,15 @@ Fixed to development environment for feature branch testing.
 
 ### Service Communication
 
-Services communicate using cluster DNS with dynamic namespaces:
+Services now use external API URL from GitHub environment variables:
 ```yaml
-API_URL: "http://reginforce-api-service.${{ env.NAMESPACE }}.svc.cluster.local:8000"
+API_BASE_URL: "${{ vars.API_BASE_URL }}"  # http://reginforceai-api.mahahrishi.com
+```
+
+**Legacy Internal Communication** (deprecated):
+```yaml
+# Old internal cluster DNS (no longer used)
+API_BASE_URL: "http://reginforce-api-service.${{ env.NAMESPACE }}.svc.cluster.local:8000"
 ```
 
 ### Resource Configuration

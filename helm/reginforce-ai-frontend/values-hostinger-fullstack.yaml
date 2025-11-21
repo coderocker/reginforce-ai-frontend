@@ -125,7 +125,7 @@ affinity: {}  # Single node setup
 env:
   - name: NODE_ENV
     value: "production"
-  - name: REACT_APP_API_BASE_URL
+  - name: VITE_API_BASE_URL
     value: "https://api.reginforce.example.com"  # Backend API endpoint
   - name: REACT_APP_WS_URL
     value: "wss://api.reginforce.example.com/ws"  # WebSocket endpoint if used

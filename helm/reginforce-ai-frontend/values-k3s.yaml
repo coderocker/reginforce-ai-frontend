@@ -121,8 +121,8 @@ affinity: {}
 env:
   - name: NODE_ENV
     value: "production"
-  - name: REACT_APP_API_BASE_URL
-    value: "http://reginforce-api-service.prod-regai.svc.cluster.local:8000"  # Internal service URL - will be overridden by CI/CD
+  - name: VITE_API_BASE_URL
+    value: "http://reginforceai-api.mahahrishi.com"  # Production API URL - overridden by CI/CD with GitHub environment variable
 
 # Disable ConfigMap by default
 configMap:

@@ -125,7 +125,7 @@ affinity: {}
 env:
   - name: NODE_ENV
     value: "production"
-  - name: REACT_APP_API_BASE_URL
+  - name: VITE_API_BASE_URL
     value: "https://api.reginforce.example.com"  # Replace with your API endpoint
   - name: NGINX_WORKER_PROCESSES
     value: "2"  # Match your CPU cores

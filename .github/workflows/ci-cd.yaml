@@ -186,7 +186,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'release')
     environment:
       name: prod  # Only deploys from main branch now, so always prod
-      url: ${{ vars.APP_URL || 'http://reginforceai.mahahrishi.com' }}
+      url: ${{ vars.APP_BASE_URL || 'http://reginforceai.mahahrishi.com' }}
     env:
       NAMESPACE: prod-regai  # Production namespace
       REGISTRY: ghcr.io
@@ -240,6 +240,7 @@ jobs:
           echo "🚀 Deploying to PRODUCTION from main branch"
           echo "📦 Namespace: ${{ env.NAMESPACE }}"
           echo "🌐 Host: reginforceai.mahahrishi.com"
+          echo "🔗 API URL: ${{ vars.API_BASE_URL }}"
           
           # Extract the built image tag
           IMAGE_TAG=$(echo '${{ needs.build-and-push.outputs.image }}' | cut -d':' -f2)
@@ -257,8 +258,8 @@ jobs:
             --set ingress.tls[0].hosts[0]="reginforceai.mahahrishi.com" \
             --set env[0].name="NODE_ENV" \
             --set env[0].value="production" \
-            --set env[1].name="REACT_APP_API_BASE_URL" \
-            --set env[1].value="http://reginforce-api-service.${{ env.NAMESPACE }}.svc.cluster.local:8000" \
+            --set env[1].name="VITE_API_BASE_URL" \
+            --set env[1].value="${{ vars.API_BASE_URL }}" \
             --set resources.requests.memory="64Mi" \
             --set resources.requests.cpu="50m" \
             --set resources.limits.memory="128Mi" \

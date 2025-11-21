@@ -48,7 +48,7 @@ cat k3s-config.yaml | base64
    - Name: `KUBECONFIG`
    - Value: The base64 encoded content from step 3
 5. Add Environment Variable:
-   - Name: `APP_URL`
+   - Name: `APP_BASE_URL`
    - Value: `http://reginforceai.mahahrishi.com`
 
 ### 5. **Test the Configuration**
@@ -107,7 +107,7 @@ echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
 
 And the app URL from environment variables:
 ```yaml
-url: ${{ vars.APP_URL || 'http://reginforceai.mahahrishi.com' }}
+url: ${{ vars.APP_BASE_URL || 'http://reginforceai.mahahrishi.com' }}
 ```
 
 This uses the GitHub Environment configuration for secure and configurable deployments.
