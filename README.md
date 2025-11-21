@@ -142,6 +142,28 @@ docker compose down
 
 ### Production Deployment
 
+**🔒 Security Note**: Production deployments are restricted to the `main` branch only for security.
+
+#### **Automatic Deployment (Recommended)**
+```bash
+# Merge to main triggers automatic deployment
+git checkout main
+git pull origin main
+git merge feature-branch
+git push origin main  # 🚀 Auto-deploys to reginforceai.mahahrishi.com
+```
+
+#### **Manual Deployment (Emergency)**
+```bash
+# Must be on main branch
+git checkout main
+git pull origin main
+
+# Use GitHub Actions "Manual Deploy" workflow
+# Available at: https://github.com/coderocker/reginforce-ai-frontend/actions
+```
+
+#### **Local Docker Build**
 ```bash
 # Build production image
 docker build -t reginforce-frontend .
@@ -149,6 +171,15 @@ docker build -t reginforce-frontend .
 # Run container
 docker run -p 80:80 reginforce-frontend
 ```
+
+### 🛡️ **Deployment Security**
+
+- ✅ **Main Branch Only**: Production deployments restricted to `main` branch
+- 🔒 **GitHub Environment Protection**: Uses secured environment secrets
+- 👥 **Review Requirements**: Manual deployments require approval
+- 🚫 **Feature Branch Prevention**: Feature branches cannot deploy to production
+
+See [`docs/branch-protection-strategy.md`](./docs/branch-protection-strategy.md) for complete security details.
 
 ## 🔧 Configuration
 

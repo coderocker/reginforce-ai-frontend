@@ -39,13 +39,17 @@ cat k3s-config.yaml | base64 -w 0
 cat k3s-config.yaml | base64
 ```
 
-### 4. **Add to GitHub Secrets**
+### 4. **Add to GitHub Environment**
 
 1. Go to your GitHub repository
-2. Settings → Secrets and variables → Actions
-3. Click "New repository secret"
-4. Name: `K3S_KUBECONFIG`
-5. Value: The base64 encoded content from step 3
+2. Settings → Environments
+3. Click on "prod" environment (or create it)
+4. Add Environment Secret:
+   - Name: `KUBECONFIG`
+   - Value: The base64 encoded content from step 3
+5. Add Environment Variable:
+   - Name: `APP_URL`
+   - Value: `http://reginforceai.mahahrishi.com`
 
 ### 5. **Test the Configuration**
 
@@ -98,7 +102,12 @@ sudo usermod -aG docker $USER
 
 Your workflow now uses:
 ```yaml
-echo "${{ secrets.K3S_KUBECONFIG }}" | base64 -d > ~/.kube/config
+echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
 ```
 
-This matches the working `ci-cd.yaml` pattern and ensures consistent deployments.
+And the app URL from environment variables:
+```yaml
+url: ${{ vars.APP_URL || 'http://reginforceai.mahahrishi.com' }}
+```
+
+This uses the GitHub Environment configuration for secure and configurable deployments.
