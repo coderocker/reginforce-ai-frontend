@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDocument, getDocumentVersions, uploadNewVersion } from "../api";
+import { getDocument, getDocumentVersions, uploadNewVersion, getDocumentContent } from "../api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatusPill } from "../components/ui/StatusPill";
@@ -11,6 +11,8 @@ export function DocumentDetail() {
   const documentId = parseInt(id || "0");
   const queryClient = useQueryClient();
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [showContent, setShowContent] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
 
   console.log('DocumentDetail - URL ID:', id, 'Parsed ID:', documentId);
 
@@ -34,6 +36,12 @@ export function DocumentDetail() {
       }
     },
     enabled: !!documentId,
+  });
+
+  const { data: content, isLoading: contentLoading, error: contentError } = useQuery({
+    queryKey: ["document-content", selectedVersionId || documentId],
+    queryFn: () => getDocumentContent(selectedVersionId || documentId),
+    enabled: !!documentId && showContent,
   });
 
 
@@ -117,28 +125,9 @@ export function DocumentDetail() {
           </Button>
           <Button
             variant="secondary"
-            onClick={async () => {
-              try {
-                console.log(`Testing direct fetch to /api/documents/${documentId}/versions`);
-                const response = await fetch(`/api/documents/${documentId}/versions`);
-                console.log('Direct fetch response status:', response.status);
-
-                if (response.ok) {
-                  const data = await response.json();
-                  console.log('Direct fetch data:', data);
-                  alert(`Direct API test successful! Status: ${response.status}, Found ${Array.isArray(data) ? data.length : 'unknown'} versions`);
-                } else {
-                  const errorText = await response.text();
-                  console.log('Direct fetch error response:', errorText);
-                  alert(`Direct API test failed! Status: ${response.status}, Error: ${errorText}`);
-                }
-              } catch (error) {
-                console.error('Direct fetch failed:', error);
-                alert('Direct fetch failed: ' + (error instanceof Error ? error.message : String(error)));
-              }
-            }}
+            onClick={() => setShowContent(!showContent)}
           >
-            Test API
+            {showContent ? 'Hide Content' : 'View Content'}
           </Button>
         </div>
       </div>
@@ -173,14 +162,72 @@ export function DocumentDetail() {
         </Card>
       )}
 
+      {/* Document Content */}
+      {showContent && (
+        <Card>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">Document Content</h3>
+                {selectedVersionId && versions?.find(v => v.id === selectedVersionId) && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Version {versions.find(v => v.id === selectedVersionId)?.version_number}
+                    {versions.find(v => v.id === selectedVersionId)?.is_latest && (
+                      <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium">Latest</span>
+                    )}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setShowContent(false);
+                  setSelectedVersionId(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+            {contentLoading && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Loading document content...</p>
+              </div>
+            )}
+            {!contentLoading && contentError && (
+              <div className="text-center py-8">
+                <div className="text-red-500 text-4xl mb-2">⚠️</div>
+                <p className="text-red-600">Failed to load document content</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {contentError instanceof Error ? contentError.message : 'Unknown error'}
+                </p>
+              </div>
+            )}
+            {!contentLoading && !contentError && content && (
+              <div className="bg-white rounded-lg p-6 border border-gray-200 max-h-96 overflow-y-auto">
+                <div className="text-gray-800 whitespace-pre-wrap break-words font-serif leading-relaxed text-sm">
+                  {content}
+                </div>
+              </div>
+            )}
+            {!contentLoading && !contentError && !content && (
+              <div className="text-center py-8 text-gray-500">
+                <p>No content available</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* Document Information */}
       <Card>
         <div className="p-6">
           <h3 className="text-lg font-semibold mb-4">Document Information</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-600">Created</label>
-              <p className="text-gray-900">
+              <label htmlFor="document-created" className="text-sm font-medium text-gray-600">Created</label>
+              <p id="document-created" className="text-gray-900">
                 {new Date(document.created_at).toLocaleDateString("en-US", {
                   year: "numeric",
                   month: "long",
@@ -191,19 +238,19 @@ export function DocumentDetail() {
               </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">Type</label>
-              <p className="text-gray-900 capitalize">{document.doc_type}</p>
+              <label htmlFor="document-type" className="text-sm font-medium text-gray-600">Type</label>
+              <p id="document-type" className="text-gray-900 capitalize">{document.doc_type}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">Status</label>
-              <div className="mt-1">
+              <label htmlFor="document-status" className="text-sm font-medium text-gray-600">Status</label>
+              <div id="document-status" className="mt-1">
                 <StatusPill status={document.status} />
               </div>
             </div>
             {document.version_number && (
               <div>
-                <label className="text-sm font-medium text-gray-600">Version</label>
-                <p className="text-gray-900">
+                <label htmlFor="document-version" className="text-sm font-medium text-gray-600">Version</label>
+                <p id="document-version" className="text-gray-900">
                   v{document.version_number} {document.is_latest && "(Latest)"}
                 </p>
               </div>
@@ -217,25 +264,33 @@ export function DocumentDetail() {
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Version History</h3>
-            <div className="text-sm text-gray-500">
-              {versionsLoading ? 'Loading...' : versionsError ? 'Error' : versions ? `${versions.length} versions` : 'No data'}
-            </div>
+            {(() => {
+              if (versionsLoading) return <div className="text-sm text-gray-500">Loading...</div>;
+              if (versionsError) return <div className="text-sm text-gray-500">Error</div>;
+              if (versions) return <div className="text-sm text-gray-500">{versions.length} versions</div>;
+              return <div className="text-sm text-gray-500">No data</div>;
+            })()}
           </div>
 
-          {versionsError ? (
+          {versionsError && (
             <div className="text-center py-8">
               <div className="text-red-500 text-4xl mb-2">⚠️</div>
               <p className="text-red-600">Failed to load version history</p>
               <p className="text-sm text-gray-600 mt-1">{versionsError.message}</p>
             </div>
-          ) : versionsLoading ? (
+          )}
+
+          {versionsLoading && !versionsError && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-2 text-gray-600">Loading versions...</p>
             </div>
-          ) : versions && versions.length > 0 ? (
+          )}
+
+          {!versionsLoading && !versionsError && versions && versions.length > 0 && (
             <div className="space-y-3">
               {versions
+                .slice()
                 .sort((a, b) => b.version_number - a.version_number)
                 .map((version) => (
                   <div
@@ -260,14 +315,23 @@ export function DocumentDetail() {
                       <span className="text-sm text-gray-600">
                         {new Date(version.created_at).toLocaleDateString()}
                       </span>
-                      <Button variant="secondary" size="sm">
-                        View Details
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedVersionId(version.id);
+                          setShowContent(true);
+                        }}
+                      >
+                        View Content
                       </Button>
                     </div>
                   </div>
                 ))}
             </div>
-          ) : (
+          )}
+
+          {!versionsLoading && !versionsError && (!versions || versions.length === 0) && (
             <div className="text-center py-8 text-gray-500">
               <div className="text-4xl mb-2">📄</div>
               <p>No version history available</p>

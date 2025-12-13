@@ -1,19 +1,21 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDocuments, uploadDocument, uploadNewVersion } from "../api";
+import { getDocuments, getDocumentVersions, uploadDocument, uploadNewVersion } from "../api";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
-import type { DocumentType, DocumentPublic } from "../types/api.js";
+import type { DocumentType, DocumentPublic, DocumentVersion } from "../types/api.js";
 
 export function Documents() {
   const [activeTab, setActiveTab] = useState<DocumentType>("regulation");
+  const [showLatestOnly, setShowLatestOnly] = useState(true);
+  const [expandedDocId, setExpandedDocId] = useState<number | null>(null);
   const [uploadingVersionFor, setUploadingVersionFor] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   const { data: documents, isLoading } = useQuery({
-    queryKey: ["documents"],
-    queryFn: getDocuments,
+    queryKey: ["documents", showLatestOnly],
+    queryFn: () => getDocuments(showLatestOnly),
     refetchInterval: (query) => {
       // Poll every 5 seconds if any document is pending or processing
       const hasProcessingDocs = query.state.data?.some((doc: DocumentPublic) =>
@@ -21,6 +23,12 @@ export function Documents() {
       );
       return hasProcessingDocs ? 5000 : false;
     },
+  });
+
+  const { data: expandedVersions, isLoading: isLoadingVersions } = useQuery<DocumentVersion[] | null>({
+    queryKey: ["document-versions", expandedDocId],
+    queryFn: () => expandedDocId ? getDocumentVersions(expandedDocId) : null,
+    enabled: expandedDocId !== null,
   });
 
   const uploadMutation = useMutation({
@@ -170,6 +178,31 @@ export function Documents() {
         Uploaded Documents
       </h2>
 
+      <div className="px-4 py-3 flex items-center justify-between">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowLatestOnly(true)}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              showLatestOnly
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            Latest Versions
+          </button>
+          <button
+            onClick={() => setShowLatestOnly(false)}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              showLatestOnly
+                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                : "bg-blue-600 text-white"
+            }`}
+          >
+            All Versions
+          </button>
+        </div>
+      </div>
+
       <div className="px-4 py-3">
         <div className="flex overflow-hidden rounded-lg border border-[#dedfe3] bg-white">
           <table className="flex-1">
@@ -193,74 +226,126 @@ export function Documents() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                    Loading documents...
-                  </td>
-                </tr>
-              ) : filteredDocuments?.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                    No documents uploaded yet
-                  </td>
-                </tr>
-              ) : (
-                filteredDocuments?.map((doc) => (
-                  <tr key={doc.id} className="border-t border-t-[#dedfe3]">
-                    <td className="h-[72px] px-4 py-2">
-                      <Link
-                        to={`/documents/${doc.id}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        {doc.filename}
-                      </Link>
-                      {doc.is_latest === false && (
-                        <span className="ml-2 text-xs text-gray-500">(Old Version)</span>
-                      )}
-                    </td>
-                    <td className="h-[72px] px-4 py-2 text-[#6b7180] text-sm font-normal leading-normal">
-                      {doc.version_number ? `v${doc.version_number}` : ''}
-                      {doc.is_latest && (
-                        <span className="ml-1 text-xs text-green-600 font-medium">Latest</span>
-                      )}
-                    </td>
-                    <td className="h-[72px] px-4 py-2 text-[#6b7180] text-sm font-normal leading-normal">
-                      {new Date(doc.created_at).toLocaleString()}
-                    </td>
-                    <td className="h-[72px] px-4 py-2">
-                      <StatusPill status={doc.status} />
-                    </td>
-                    <td className="h-[72px] px-4 py-2">
-                      <div className="flex gap-2">
-                        {doc.status === "processed" && (doc.is_latest !== false) && (
-                          <>
-                            <input
-                              type="file"
-                              id={`version-upload-${doc.id}`}
-                              className="hidden"
-                              onChange={(e) => handleVersionUpload(doc.id, e)}
-                              accept=".pdf,.txt"
-                              aria-label={`Upload new version for ${doc.filename}`}
-                            />
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => {
-                                const input = document.getElementById(`version-upload-${doc.id}`) as HTMLInputElement;
-                                input?.click();
-                              }}
-                              isLoading={uploadingVersionFor === doc.id}
-                            >
-                              {uploadingVersionFor === doc.id ? 'Uploading...' : 'New Version'}
-                            </Button>
-                          </>
+              {(() => {
+                if (isLoading) {
+                  return (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        Loading documents...
+                      </td>
+                    </tr>
+                  );
+                }
+                if (filteredDocuments?.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                        No documents uploaded yet
+                      </td>
+                    </tr>
+                  );
+                }
+                return filteredDocuments?.map((doc) => (
+                  <Fragment key={doc.id}>
+                    <tr className="border-t border-t-[#dedfe3]">
+                      <td className="h-[72px] px-4 py-2">
+                        <Link
+                          to={`/documents/${doc.id}`}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          {doc.filename}
+                        </Link>
+                        {doc.is_latest === false && (
+                          <span className="ml-2 text-xs text-gray-500">(Old Version)</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+                      </td>
+                      <td className="h-[72px] px-4 py-2 text-[#6b7180] text-sm font-normal leading-normal">
+                        {doc.version_number ? `v${doc.version_number}` : ''}
+                        {doc.is_latest && (
+                          <span className="ml-1 text-xs text-green-600 font-medium">Latest</span>
+                        )}
+                      </td>
+                      <td className="h-[72px] px-4 py-2 text-[#6b7180] text-sm font-normal leading-normal">
+                        {new Date(doc.created_at).toLocaleString()}
+                      </td>
+                      <td className="h-[72px] px-4 py-2">
+                        <StatusPill status={doc.status} />
+                      </td>
+                      <td className="h-[72px] px-4 py-2">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
+                          >
+                            {expandedDocId === doc.id ? "Hide Versions" : "View All"}
+                          </Button>
+                          {doc.status === "processed" && (doc.is_latest !== false) && (
+                            <>
+                              <input
+                                type="file"
+                                id={`version-upload-${doc.id}`}
+                                className="hidden"
+                                onChange={(e) => handleVersionUpload(doc.id, e)}
+                                accept=".pdf,.txt"
+                                aria-label={`Upload new version for ${doc.filename}`}
+                              />
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  const input = document.getElementById(`version-upload-${doc.id}`) as HTMLInputElement;
+                                  input?.click();
+                                }}
+                                isLoading={uploadingVersionFor === doc.id}
+                              >
+                                {uploadingVersionFor === doc.id ? 'Uploading...' : 'New Version'}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedDocId === doc.id && (
+                      <tr className="bg-gray-50 border-t border-t-[#dedfe3]">
+                        <td colSpan={5} className="px-4 py-4">
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-[#131416]">All Versions for {doc.filename}</h4>
+                            {isLoadingVersions && (
+                              <p className="text-gray-500">Loading versions...</p>
+                            )}
+                            {!isLoadingVersions && expandedVersions && expandedVersions.length > 0 && (
+                              <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {expandedVersions.map((version) => (
+                                  <div key={version.id} className="p-3 bg-white border border-[#dedfe3] rounded-lg">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1">
+                                        <p className="font-medium text-[#131416]">
+                                          v{version.version_number}
+                                          {version.is_latest && (
+                                            <span className="ml-2 text-xs text-green-600 font-medium">Latest</span>
+                                          )}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          {new Date(version.created_at).toLocaleString()}
+                                        </p>
+                                      </div>
+                                      <StatusPill status={version.status} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {!isLoadingVersions && (!expandedVersions || expandedVersions.length === 0) && (
+                              <p className="text-gray-500">No versions found</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ));
+              })()}
             </tbody>
           </table>
         </div>

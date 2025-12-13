@@ -20,7 +20,7 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
 
   const { data: documents } = useQuery({
     queryKey: ["documents"],
-    queryFn: getDocuments,
+    queryFn: () => getDocuments(),
   });
 
   const processedDocuments = documents?.filter(doc => doc.status === "processed") || [];

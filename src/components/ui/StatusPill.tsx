@@ -20,16 +20,17 @@ export function StatusPill({ status }: StatusPillProps) {
   };
 
   const formatStatus = (status: string) => {
+    if (!status) return "Unknown";
     return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   return (
     <span
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusStyles(
-        status
+        status || "unknown"
       )}`}
     >
-      {formatStatus(status)}
+      {formatStatus(status || "")}
     </span>
   );
 }

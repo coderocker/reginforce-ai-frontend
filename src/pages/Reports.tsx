@@ -66,8 +66,8 @@ export function Reports() {
   });
 
   useQuery({
-    queryKey: ["report-trends", numericReportId],
-    queryFn: () => getReportTrends(numericReportId),
+    queryKey: ["report-trends"],
+    queryFn: () => getReportTrends(),
     enabled: !!numericReportId,
   });
 

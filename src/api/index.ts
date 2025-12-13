@@ -6,7 +6,6 @@ import type {
   AnalysisRequest,
   ReportPublic,
   TrendData,
-  ComparisonResult,
   PolicyDiffPublic,
   RemediationPlanPublic,
   DependencyGraph,
@@ -18,13 +17,18 @@ import type {
 } from "../types/api.js";
 
 // === Documents ===
-export const getDocuments = async (): Promise<DocumentPublic[]> => {
-  const response = await apiClient.get<DocumentPublic[]>("/documents/");
+export const getDocuments = async (latest: boolean = true, limit?: number): Promise<DocumentPublic[]> => {
+  const params = new URLSearchParams();
+  params.append("latest", latest.toString());
+  if (limit) {
+    params.append("limit", limit.toString());
+  }
+  const response = await apiClient.get<DocumentPublic[]>(`/api/documents/?${params}`);
   return response.data;
 };
 
 export const getDocument = async (id: number): Promise<DocumentPublic> => {
-  const response = await apiClient.get<DocumentPublic>(`/documents/${id}`);
+  const response = await apiClient.get<DocumentPublic>(`/api/documents/${id}`);
   return response.data;
 };
 
@@ -37,7 +41,7 @@ export const uploadDocument = async (
   formData.append("doc_type", doc_type);
 
   const response = await apiClient.post<DocumentPublic>(
-    "/documents/upload",
+    "/api/documents/upload",
     formData,
     {
       headers: {
@@ -56,7 +60,7 @@ export const uploadNewVersion = async (
   formData.append("file", file);
 
   const response = await apiClient.post<DocumentPublic>(
-    `/documents/${documentId}/new-version`,
+    `/api/documents/${documentId}/new-version`,
     formData,
     {
       headers: {
@@ -68,33 +72,38 @@ export const uploadNewVersion = async (
 };
 
 export const getDocumentVersions = async (documentId: number): Promise<DocumentVersion[]> => {
-  const response = await apiClient.get<DocumentVersionsResponse>(`/documents/${documentId}/versions`);
+  const response = await apiClient.get<DocumentVersionsResponse>(`/api/documents/${documentId}/versions`);
   return response.data.versions; // Extract the versions array from the response
+};
+
+export const getDocumentContent = async (documentId: number): Promise<string> => {
+  const response = await apiClient.get<{ content: string }>(`/api/documents/${documentId}/content`);
+  return response.data.content;
 };
 
 // === Analysis ===
 export const runAnalysis = async (
   request: AnalysisRequest
 ): Promise<ReportPublic> => {
-  const response = await apiClient.post<ReportPublic>("/analysis/run", request);
+  const response = await apiClient.post<ReportPublic>("/api/analysis/reports", request);
   return response.data;
 };
 
 export const getReports = async (): Promise<ReportPublic[]> => {
-  const response = await apiClient.get<ReportPublic[]>("/analysis");
-  return response.data;
+  const response = await apiClient.get<{ items: ReportPublic[] }>("/api/analysis/reports");
+  return response.data.items;
 };
 
 export const getReport = async (reportId: number): Promise<ReportPublic> => {
-  const response = await apiClient.get<ReportPublic>(`/analysis/${reportId}`);
+  const response = await apiClient.get<ReportPublic>(`/api/analysis/reports/${reportId}`);
   console.log('Raw API response for report:', JSON.stringify(response.data, null, 2));
   return response.data;
 };
 
 export const getAnalysisStats = async (): Promise<AnalysisStats> => {
-  console.log('Fetching analysis stats from /analysis/stats');
+  console.log('Fetching analysis stats from /analysis/reports/statistics');
   try {
-    const response = await apiClient.get<AnalysisStats>("/analysis/stats");
+    const response = await apiClient.get<AnalysisStats>("/api/analysis/reports/statistics");
     console.log('Analysis stats response:', response.data);
     return response.data;
   } catch (error) {
@@ -103,54 +112,73 @@ export const getAnalysisStats = async (): Promise<AnalysisStats> => {
   }
 };
 
-export const getReportTrends = async (reportId: number): Promise<TrendData> => {
+export const getReportTrends = async (): Promise<TrendData> => {
   const response = await apiClient.get<TrendData>(
-    `/analysis/${reportId}/trends`
+    `/api/analysis/temporal-trends`
   );
   return response.data;
 };
 
-export const getReportHistory = async (
-  reportId: number
-): Promise<ComparisonResult> => {
-  const response = await apiClient.get<ComparisonResult>(
-    `/analysis/${reportId}/history`
+export const getGapHistory = async (
+  gapId: number
+): Promise<any> => {
+  const response = await apiClient.get(
+    `/api/analysis/gaps/${gapId}/history`
   );
   return response.data;
 };
 
-export const compareReports = async (
-  currentReportId: number,
-  previousReportId: number
-): Promise<ComparisonResult> => {
-  const response = await apiClient.post<ComparisonResult>(
-    `/analysis/${currentReportId}/compare`,
-    { previous_report_id: previousReportId }
-  );
-  return response.data;
-};
-
-// === Policy Diff ===
-export const getPolicyDiff = async (
+// === Document Comparison ===
+export const compareDocuments = async (
   oldId: number,
-  newId: number,
-  format: string = "json"
+  newId: number
 ): Promise<PolicyDiffPublic> => {
   const response = await apiClient.get<PolicyDiffPublic>(
-    `/policies/${oldId}/diff/${newId}`,
-    {
-      params: { format },
-    }
+    `/api/documents/${oldId}/compare/${newId}`
   );
   return response.data;
+};
+
+// Legacy alias for backward compatibility
+export const getPolicyDiff = async (
+  oldId: number,
+  newId: number
+): Promise<PolicyDiffPublic> => {
+  return compareDocuments(oldId, newId);
 };
 
 // === Remediation ===
+export const getRemediationPlansForReport = async (
+  reportId: number
+): Promise<RemediationPlanPublic[]> => {
+  const response = await apiClient.get<RemediationPlanPublic[]>(
+    `/api/remediation/reports/${reportId}/plans`
+  );
+  return response.data;
+};
+
+// Legacy alias - returns first plan or null
 export const getRemediationPlanForReport = async (
   reportId: number
+): Promise<RemediationPlanPublic | null> => {
+  const plans = await getRemediationPlansForReport(reportId);
+  return plans?.[0] || null;
+};
+
+export const createRemediationPlan = async (
+  reportId: number,
+  options?: {
+    organization_size?: string;
+    industry?: string;
+    target_completion_days?: number;
+  }
 ): Promise<RemediationPlanPublic> => {
-  const response = await apiClient.get<RemediationPlanPublic>(
-    `/remediation/reports/${reportId}`
+  const response = await apiClient.post<RemediationPlanPublic>(
+    `/api/remediation/plans`,
+    {
+      analysis_report_id: reportId,
+      ...options
+    }
   );
   return response.data;
 };
@@ -163,36 +191,46 @@ export const generateRemediationPlan = async (
     target_completion_days?: number;
   }
 ): Promise<RemediationPlanPublic> => {
-  const response = await apiClient.post<RemediationPlanPublic>(
-    `/remediation/reports/${reportId}/generate`,
-    options || {}
-  );
-  return response.data;
+  return createRemediationPlan(reportId, options);
 };
 
 export const getRemediationPlan = async (
   planId: number
 ): Promise<RemediationPlanPublic> => {
   const response = await apiClient.get<RemediationPlanPublic>(
-    `/remediation/plans/${planId}`
+    `/api/remediation/plans/${planId}`
   );
   return response.data;
 };
 
+// Build dependency graph from plan steps
 export const getDependencyGraph = async (
   planId: number
 ): Promise<DependencyGraph> => {
-  const response = await apiClient.get<DependencyGraph>(
-    `/remediation/plans/${planId}/dependencies`
-  );
-  return response.data;
+  const plan = await getRemediationPlan(planId);
+  // Transform plan.steps into a dependency graph format
+  return {
+    plan_id: plan.id,
+    nodes: plan.steps.map(step => ({
+      step_id: step.id,
+      gap_id: step.gap_id,
+      title: step.title,
+      effort_hours: step.effort_hours,
+      priority: step.priority,
+      status: step.status,
+      depends_on: step.dependencies || [],
+      blocks: []
+    })),
+    critical_path: [],
+    critical_path_hours: 0
+  };
 };
 
 export const updateRemediationStepStatus = async (
   stepId: number,
   status: string
 ): Promise<void> => {
-  await apiClient.patch(`/remediation/steps/${stepId}/status`, { status });
+  await apiClient.patch(`/api/remediation/steps/${stepId}/status`, { status });
 };
 
 export const exportRemediationPlan = async (
@@ -200,7 +238,7 @@ export const exportRemediationPlan = async (
   format: string = "json"
 ): Promise<Blob> => {
   const response = await apiClient.get(
-    `/remediation/plans/${planId}/export`,
+    `/api/remediation/plans/${planId}/export`,
     {
       params: { format },
       responseType: "blob",
@@ -215,7 +253,7 @@ export const getConversations = async (
   pageSize: number = 20
 ): Promise<ConversationListResponse> => {
   const response = await apiClient.get<ConversationListResponse>(
-    "/chat/conversations",
+    "/api/chat/conversations",
     {
       params: { page, page_size: pageSize },
     }
@@ -227,7 +265,7 @@ export const getConversationMessages = async (
   conversationId: number
 ): Promise<MessagePublic[]> => {
   const response = await apiClient.get<MessagePublic[]>(
-    `/chat/conversations/${conversationId}/messages`
+    `/api/chat/conversations/${conversationId}/messages`
   );
   return response.data;
 };
@@ -236,7 +274,7 @@ export const sendMessage = async (
   request: SendMessageRequest
 ): Promise<SendMessageResponse> => {
   const response = await apiClient.post<SendMessageResponse>(
-    "/chat/send",
+    "/api/chat/send",
     request
   );
   return response.data;

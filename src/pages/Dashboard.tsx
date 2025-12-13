@@ -13,7 +13,7 @@ export function Dashboard() {
   // Fetch dashboard data
   const { data: documents = [], isLoading: documentsLoading } = useQuery({
     queryKey: ['documents'],
-    queryFn: getDocuments,
+    queryFn: () => getDocuments(),
   });
 
   const { data: reports = [], isLoading: reportsLoading } = useQuery({
@@ -329,7 +329,7 @@ export function Dashboard() {
           <Card>
             <div className="p-8 text-center">
               <div className="text-6xl mb-4">🚀</div>
-              <h3 className="text-xl font-bold mb-2 text-gray-900">Welcome to RegInforce AI</h3>
+              <h3 className="text-xl font-bold mb-2 text-gray-900">Welcome to Comply Lens</h3>
               <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
                 Get started by uploading your regulation and policy documents.
                 Our AI will analyze them to identify compliance gaps and help you maintain regulatory adherence.

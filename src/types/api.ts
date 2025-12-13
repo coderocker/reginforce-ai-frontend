@@ -1,4 +1,4 @@
-// Type definitions for RegInforce AI API
+// Type definitions for Comply Lens API
 
 // Enums
 export type ProcessingStatus = "pending" | "processing" | "processed" | "error";

@@ -1,15 +1,25 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../providers";
 import NewAnalysisModal from "../NewAnalysisModal";
+import { ComplianceAssistant } from "../chat/ComplianceAssistant";
 
 interface MainLayoutProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  const [showChatSidebar, setShowChatSidebar] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -24,7 +34,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="flex h-full min-h-[700px] flex-col justify-between bg-white p-4">
               <div className="flex flex-col gap-4">
                 <h1 className="text-[#131416] text-base font-medium leading-normal">
-                  RegInforce AI
+                  Comply Lens
                 </h1>
                 <nav className="flex flex-col gap-2">
                   <Link
@@ -89,6 +99,48 @@ export function MainLayout({ children }: MainLayoutProps) {
                       Reports
                     </p>
                   </Link>
+
+                  <Link
+                    to="/package-vetting"
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isActive("/package-vetting")
+                      ? "bg-[#f1f2f3]"
+                      : "hover:bg-[#f1f2f3]"
+                      }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24px"
+                      height="24px"
+                      fill="currentColor"
+                      viewBox="0 0 256 256"
+                    >
+                      <path d="M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V176a16,16,0,0,0,16,16h72v16a8,8,0,0,0,16,0V192h48a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,136H40V56H216V176Zm-72,48v32a8,8,0,0,1-16,0V224a8,8,0,0,1,16,0Z" />
+                    </svg>
+                    <p className="text-[#131416] text-sm font-medium leading-normal">
+                      OSS Vetting
+                    </p>
+                  </Link>
+
+                  <Link
+                    to="/licenses"
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isActive("/licenses")
+                      ? "bg-[#f1f2f3]"
+                      : "hover:bg-[#f1f2f3]"
+                      }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24px"
+                      height="24px"
+                      fill="currentColor"
+                      viewBox="0 0 256 256"
+                    >
+                      <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H216v80H40ZM40,200V152H216v48Z" />
+                    </svg>
+                    <p className="text-[#131416] text-sm font-medium leading-normal">
+                      Licenses
+                    </p>
+                  </Link>
                 </nav>
               </div>
 
@@ -117,9 +169,9 @@ export function MainLayout({ children }: MainLayoutProps) {
                       Settings
                     </p>
                   </Link>
-                  <a
-                    href="#"
-                    className="flex items-center gap-3 px-3 py-2 hover:bg-[#f1f2f3] rounded-lg"
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-[#f1f2f3] rounded-lg w-full text-left"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -128,21 +180,41 @@ export function MainLayout({ children }: MainLayoutProps) {
                       fill="currentColor"
                       viewBox="0 0 256 256"
                     >
-                      <path d="M140,180a12,12,0,1,1-12-12A12,12,0,0,1,140,180ZM128,72c-22.06,0-40,16.15-40,36v4a8,8,0,0,0,16,0v-4c0-11,10.77-20,24-20s24,9,24,20-10.77,20-24,20a8,8,0,0,0-8,8v8a8,8,0,0,0,16,0v-.72c18.24-3.35,32-17.9,32-35.28C168,88.15,150.06,72,128,72Zm104,56A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z" />
+                      <path d="M112,216a8,8,0,0,1-8-8V40a8,8,0,0,1,16,0V208A8,8,0,0,1,112,216Zm76.37-52.37a8,8,0,1,1-11.31,11.31l24,24a8,8,0,0,0,11.31,0l24-24a8,8,0,0,1-11.31-11.31L224,176.69V160a8,8,0,0,1,16,0v40a8,8,0,0,1-8,8H192a8,8,0,0,1,0-16h16.69Zm0-125.26a8,8,0,0,1,11.31-11.31L224,47.31V32a8,8,0,0,1,16,0V72a8,8,0,0,1-8,8H192a8,8,0,0,1,0-16h16.69Z" />
                     </svg>
                     <p className="text-[#131416] text-sm font-medium leading-normal">
-                      Help and docs
+                      Logout
                     </p>
-                  </a>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Main Content */}
-          <div className="layout-content-container flex flex-col max-w-[960px] flex-1">
+          <div className="layout-content-container flex flex-col max-w-[960px] flex-1 relative">
+            <div className="absolute top-0 right-0 -mr-12">
+              <button
+                onClick={() => setShowChatSidebar(!showChatSidebar)}
+                className="p-2 hover:bg-[#f1f2f3] rounded-lg transition-colors"
+                title="Toggle Compliance Assistant"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24px"
+                  height="24px"
+                  fill="currentColor"
+                  viewBox="0 0 256 256"
+                >
+                  <path d="M231,175.89A56,56,0,0,1,176,232H40a8,8,0,0,1-8-8V88a56,56,0,0,1,112,0v8a8,8,0,0,0,16,0V88a72,72,0,0,0-144,0V40a8,8,0,0,1,16,0V80a56,56,0,0,1,112,0v88a40,40,0,0,1-40,40H40V216h136a40,40,0,0,0,40-40.11A8,8,0,0,1,231,175.89Z" />
+                </svg>
+              </button>
+            </div>
             {children}
           </div>
+
+          {/* Chat Sidebar */}
+          {showChatSidebar && <ComplianceAssistant isOpen={true} />}
         </div>
       </div>
       <NewAnalysisModal
