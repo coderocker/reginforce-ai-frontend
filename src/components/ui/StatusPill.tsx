@@ -1,7 +1,7 @@
 import type { ProcessingStatus, RemediationStatus } from "../../types/api";
 
 interface StatusPillProps {
-  status: ProcessingStatus | RemediationStatus | string;
+  readonly status: ProcessingStatus | RemediationStatus;
 }
 
 export function StatusPill({ status }: StatusPillProps) {
@@ -21,7 +21,7 @@ export function StatusPill({ status }: StatusPillProps) {
 
   const formatStatus = (status: string) => {
     if (!status) return "Unknown";
-    return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+    return status.replaceAll("_", " ").replaceAll(/\b\w/g, (l) => l.toUpperCase());
   };
 
   return (

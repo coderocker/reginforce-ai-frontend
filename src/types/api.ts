@@ -3,7 +3,7 @@
 // Enums
 export type ProcessingStatus = "pending" | "processing" | "processed" | "error";
 export type GapStatus = "new" | "existing" | "resolved" | "worsened";
-export type DocumentType = "regulation" | "policy";
+export type DocumentType = "regulation" | "policy" | "oss_license" | "oss_policy" | "copyright_statute";
 export type RemediationStatus = "draft" | "in_progress" | "completed" | "blocked";
 export type EffortSize = "S" | "M" | "L" | "XL";
 export type MessageRole = "user" | "assistant" | "system";
@@ -63,10 +63,19 @@ export interface ClusterSummary {
 
 export interface ReportPublic {
   id: number;
+  organization_id?: string;
   regulation_doc_id: number;
   policy_doc_id: number;
+  analysis_type?: string;
   status: ProcessingStatus;
+  overall_compliance_score: number | null;
+  summary: string | null;
+  recommendations: string | null;
+  ai_model_used: string | null;
+  processing_time_seconds: number | null;
   created_at: string;
+  updated_at?: string;
+  created_by?: string;
   gaps: GapPublic[];
   cluster_summaries?: Record<string, ClusterSummary> | null;
   total_critical?: number | null;

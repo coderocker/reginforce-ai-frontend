@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { getDocuments, runAnalysis } from "../api";
+import { getDocuments, runAnalysis, pollReportStatus } from "../api";
 import { Button } from "./ui/Button";
 import type { DocumentPublic } from "../types/api";
 
 interface NewAnalysisModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess?: () => void;
 }
 
 export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnalysisModalProps) {
@@ -16,6 +16,7 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
   const [regulationVersionId, setRegulationVersionId] = useState<number | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<string>("");
   const [policyVersionId, setPolicyVersionId] = useState<number | null>(null);
+  const [pollingMessage, setPollingMessage] = useState<string>("");
   const navigate = useNavigate();
 
   const { data: documents } = useQuery({
@@ -48,16 +49,28 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
   const selectedPolicyVersions = selectedPolicy ? groupedPolicies[selectedPolicy] || [] : [];
 
   const analysisMutation = useMutation({
-    mutationFn: runAnalysis,
-    onSuccess: (response) => {
-      console.log("Analysis started:", response);
+    mutationFn: async (data: { regulation_doc_id: number; policy_doc_id: number }) => {
+      // Step 1: Create report (returns immediately with status "pending")
+      setPollingMessage("Creating report...");
+      const report = await runAnalysis(data);
+      
+      // Step 2: Poll for completion
+      setPollingMessage("Analyzing compliance gaps (this may take a few seconds)...");
+      const completedReport = await pollReportStatus(report.id);
+      
+      return completedReport;
+    },
+    onSuccess: (report) => {
+      console.log("Analysis completed:", report);
+      setPollingMessage("");
       onClose();
       onSuccess?.(); // Call the optional refresh callback
-      navigate(`/reports/${response.id}`);
+      navigate(`/reports/${report.id}`);
     },
     onError: (error) => {
       console.error("Analysis failed:", error);
-      alert("Failed to start analysis: " + error.message);
+      setPollingMessage("");
+      alert("Failed to complete analysis: " + (error instanceof Error ? error.message : "Unknown error"));
     },
   });
 
@@ -80,7 +93,8 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
           <h2 className="text-xl font-bold">New Analysis</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            disabled={analysisMutation.isPending}
+            className="text-gray-500 hover:text-gray-700 disabled:text-gray-300"
             aria-label="Close modal"
           >
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,6 +102,15 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
             </svg>
           </button>
         </div>
+
+        {analysisMutation.isPending && pollingMessage && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-blue-700">{pollingMessage}</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Regulation Selection */}
@@ -102,7 +125,8 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
                 setSelectedRegulation(e.target.value);
                 setRegulationVersionId(null); // Reset version when document changes
               }}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={analysisMutation.isPending}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               required
             >
               <option value="">Choose a regulation document...</option>
@@ -124,12 +148,13 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
                 id="regulation-version-select"
                 value={regulationVersionId || ""}
                 onChange={(e) => setRegulationVersionId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={analysisMutation.isPending}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                 required
               >
                 <option value="">Choose a version...</option>
                 {selectedRegulationVersions
-                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0)) // Sort by version descending
+                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
                   .map((doc) => (
                     <option key={doc.id} value={doc.id}>
                       v{doc.version_number || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
@@ -151,7 +176,8 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
                 setSelectedPolicy(e.target.value);
                 setPolicyVersionId(null); // Reset version when document changes
               }}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={analysisMutation.isPending}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               required
             >
               <option value="">Choose a policy document...</option>
@@ -173,12 +199,13 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
                 id="policy-version-select"
                 value={policyVersionId || ""}
                 onChange={(e) => setPolicyVersionId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={analysisMutation.isPending}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                 required
               >
                 <option value="">Choose a version...</option>
                 {selectedPolicyVersions
-                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0)) // Sort by version descending
+                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
                   .map((doc) => (
                     <option key={doc.id} value={doc.id}>
                       v{doc.version_number || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
@@ -205,6 +232,7 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
               type="button"
               variant="secondary"
               onClick={onClose}
+              disabled={analysisMutation.isPending}
               className="flex-1"
             >
               Cancel
@@ -216,7 +244,7 @@ export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnal
               isLoading={analysisMutation.isPending}
               className="flex-1"
             >
-              {analysisMutation.isPending ? "Starting Analysis..." : "Run Analysis"}
+              {analysisMutation.isPending ? "Analyzing..." : "Run Analysis"}
             </Button>
           </div>
         </form>

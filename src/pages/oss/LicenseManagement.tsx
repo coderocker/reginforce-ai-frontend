@@ -4,54 +4,108 @@ import { apiClient } from "../../api/client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 
+type LicenseType = "permissive" | "copyleft" | "weak_copyleft" | "proprietary" | "public_domain" | "unknown";
+
 interface License {
   id: number;
+  organization_id: string | null;
+  spdx_id: string;
   name: string;
-  identifier: string;
+  license_type: LicenseType;
   description?: string;
-  category: "permissive" | "copyleft" | "proprietary" | "other";
-  is_approved: boolean;
+  full_text?: string;
+  requires_attribution: boolean;
+  requires_source_disclosure: boolean;
+  allows_commercial_use: boolean;
+  allows_modification: boolean;
+  allows_distribution: boolean;
+  compatible_licenses?: string;
+  incompatible_licenses?: string;
+  version?: string;
+  is_osi_approved: boolean;
+  is_fsf_approved: boolean;
+  is_deprecated: boolean;
+  is_global: boolean;
+  official_url?: string;
   created_at: string;
   updated_at: string;
+  created_by: string;
+}
+
+interface OSSLicenseList {
+  items: License[];
+  total: number;
 }
 
 interface CreateLicenseRequest {
+  spdx_id: string;
   name: string;
-  identifier: string;
+  license_type: LicenseType;
   description?: string;
-  category: "permissive" | "copyleft" | "proprietary" | "other";
-  is_approved: boolean;
+  full_text?: string;
+  requires_attribution?: boolean;
+  requires_source_disclosure?: boolean;
+  allows_commercial_use?: boolean;
+  allows_modification?: boolean;
+  allows_distribution?: boolean;
+  compatible_licenses?: string;
+  incompatible_licenses?: string;
+  version?: string;
+  is_osi_approved?: boolean;
+  is_fsf_approved?: boolean;
+  official_url?: string;
+  is_global?: boolean;
+}
+
+interface UpdateLicenseRequest {
+  name?: string;
+  description?: string;
+  full_text?: string;
+  requires_attribution?: boolean;
+  requires_source_disclosure?: boolean;
+  allows_commercial_use?: boolean;
+  allows_modification?: boolean;
+  allows_distribution?: boolean;
+  compatible_licenses?: string;
+  incompatible_licenses?: string;
+  is_deprecated?: boolean;
+  official_url?: string;
 }
 
 export function LicenseManagement() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateLicenseRequest>({
+    spdx_id: "",
     name: "",
-    identifier: "",
+    license_type: "unknown",
     description: "",
-    category: "other",
-    is_approved: false,
+    is_osi_approved: false,
+    is_fsf_approved: false,
   });
   const queryClient = useQueryClient();
 
   // Fetch licenses
   const {
-    data: licenses = [],
+    data: licenseList,
     isLoading,
     error,
-  } = useQuery<License[]>({
+  } = useQuery<OSSLicenseList>({
     queryKey: ["licenses"],
     queryFn: async () => {
-      const response = await apiClient.get<License[]>("/api/licenses");
+      const response = await apiClient.get<OSSLicenseList>("/api/oss/licenses", {
+        params: { include_global: true },
+      });
       return response.data;
     },
   });
 
+  const licenses = licenseList?.items || [];
+
   // Create license mutation
   const createMutation = useMutation({
     mutationFn: async (data: CreateLicenseRequest) => {
-      const response = await apiClient.post<License>("/api/licenses", data);
+      const response = await apiClient.post<License>("/api/oss/licenses", data);
       return response.data;
     },
     onSuccess: () => {
@@ -63,9 +117,9 @@ export function LicenseManagement() {
 
   // Update license mutation
   const updateMutation = useMutation({
-    mutationFn: async (data: CreateLicenseRequest) => {
-      const response = await apiClient.put<License>(
-        `/api/licenses/${editingId}`,
+    mutationFn: async (data: UpdateLicenseRequest) => {
+      const response = await apiClient.patch<License>(
+        `/api/oss/licenses/${editingId}`,
         data
       );
       return response.data;
@@ -80,7 +134,7 @@ export function LicenseManagement() {
   // Delete license mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.delete(`/api/licenses/${id}`);
+      await apiClient.delete(`/api/oss/licenses/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["licenses"] });
@@ -89,18 +143,29 @@ export function LicenseManagement() {
 
   const resetForm = () => {
     setFormData({
+      spdx_id: "",
       name: "",
-      identifier: "",
+      license_type: "unknown",
       description: "",
-      category: "other",
-      is_approved: false,
+      is_osi_approved: false,
+      is_fsf_approved: false,
     });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.spdx_id || !formData.name || !formData.license_type) {
+      alert("Please fill in required fields: SPDX ID, Name, and License Type");
+      return;
+    }
     if (editingId) {
-      updateMutation.mutate(formData);
+      updateMutation.mutate({
+        name: formData.name,
+        description: formData.description,
+        full_text: formData.full_text,
+        is_deprecated: false,
+        official_url: formData.official_url,
+      });
     } else {
       createMutation.mutate(formData);
     }
@@ -108,11 +173,14 @@ export function LicenseManagement() {
 
   const handleEdit = (license: License) => {
     setFormData({
+      spdx_id: license.spdx_id,
       name: license.name,
-      identifier: license.identifier,
+      license_type: license.license_type,
       description: license.description,
-      category: license.category,
-      is_approved: license.is_approved,
+      full_text: license.full_text,
+      is_osi_approved: license.is_osi_approved,
+      is_fsf_approved: license.is_fsf_approved,
+      official_url: license.official_url,
     });
     setEditingId(license.id);
     setShowCreateForm(true);
@@ -124,17 +192,19 @@ export function LicenseManagement() {
     setShowCreateForm(false);
   };
 
-  const getCategoryBadgeColor = (
-    category: "permissive" | "copyleft" | "proprietary" | "other"
-  ) => {
-    switch (category) {
+  const getCategoryBadgeColor = (type: LicenseType) => {
+    switch (type) {
       case "permissive":
         return "bg-green-100 text-green-800";
       case "copyleft":
         return "bg-blue-100 text-blue-800";
+      case "weak_copyleft":
+        return "bg-cyan-100 text-cyan-800";
       case "proprietary":
         return "bg-red-100 text-red-800";
-      case "other":
+      case "public_domain":
+        return "bg-purple-100 text-purple-800";
+      case "unknown":
         return "bg-gray-100 text-gray-800";
     }
   };
@@ -167,10 +237,29 @@ export function LicenseManagement() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="spdx_id" className="block text-sm font-medium text-gray-700 mb-1">
+                  SPDX ID *
+                </label>
+                <input
+                  id="spdx_id"
+                  type="text"
+                  value={formData.spdx_id}
+                  onChange={(e) =>
+                    setFormData({ ...formData, spdx_id: e.target.value })
+                  }
+                  required
+                  disabled={!!editingId}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  placeholder="e.g., MIT"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                   License Name *
                 </label>
                 <input
+                  id="name"
                   type="text"
                   value={formData.name}
                   onChange={(e) =>
@@ -181,29 +270,14 @@ export function LicenseManagement() {
                   placeholder="e.g., MIT License"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Identifier *
-                </label>
-                <input
-                  type="text"
-                  value={formData.identifier}
-                  onChange={(e) =>
-                    setFormData({ ...formData, identifier: e.target.value })
-                  }
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., MIT"
-                />
-              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
                 Description
               </label>
               <textarea
+                id="description"
                 value={formData.description || ""}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -216,45 +290,74 @@ export function LicenseManagement() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category *
+                <label htmlFor="license_type" className="block text-sm font-medium text-gray-700 mb-1">
+                  License Type *
                 </label>
                 <select
-                  value={formData.category}
+                  id="license_type"
+                  value={formData.license_type}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      category: e.target.value as
-                        | "permissive"
-                        | "copyleft"
-                        | "proprietary"
-                        | "other",
+                      license_type: e.target.value as LicenseType,
                     })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="permissive">Permissive</option>
                   <option value="copyleft">Copyleft</option>
+                  <option value="weak_copyleft">Weak Copyleft</option>
                   <option value="proprietary">Proprietary</option>
-                  <option value="other">Other</option>
+                  <option value="public_domain">Public Domain</option>
+                  <option value="unknown">Unknown</option>
                 </select>
               </div>
 
-              <div className="flex items-end">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_approved}
-                    onChange={(e) =>
-                      setFormData({ ...formData, is_approved: e.target.checked })
-                    }
-                    className="rounded"
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    Approved
-                  </span>
+              <div>
+                <label htmlFor="official_url" className="block text-sm font-medium text-gray-700 mb-1">
+                  Official URL
                 </label>
+                <input
+                  id="official_url"
+                  type="url"
+                  value={formData.official_url || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, official_url: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://example.com/license"
+                />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.is_osi_approved || false}
+                  onChange={(e) =>
+                    setFormData({ ...formData, is_osi_approved: e.target.checked })
+                  }
+                  className="rounded"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  OSI Approved
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.is_fsf_approved || false}
+                  onChange={(e) =>
+                    setFormData({ ...formData, is_fsf_approved: e.target.checked })
+                  }
+                  className="rounded"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  FSF Approved
+                </span>
+              </label>
             </div>
 
             <div className="flex gap-2 pt-4">
@@ -311,13 +414,13 @@ export function LicenseManagement() {
                     Name
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Identifier
+                    SPDX ID
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Category
+                    Type
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Status
+                    Approvals
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
                     Actions
@@ -336,28 +439,36 @@ export function LicenseManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-3 text-sm text-gray-600 font-mono">
-                      {license.identifier}
+                      {license.spdx_id}
                     </td>
                     <td className="px-6 py-3 text-sm">
                       <span
                         className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadgeColor(
-                          license.category
+                          license.license_type
                         )}`}
                       >
-                        {license.category.charAt(0).toUpperCase() +
-                          license.category.slice(1)}
+                        {license.license_type
+                          .split("_")
+                          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                          .join(" ")}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-sm">
-                      <span
-                        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          license.is_approved
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {license.is_approved ? "Approved" : "Pending"}
-                      </span>
+                    <td className="px-6 py-3 text-sm space-x-1">
+                      {license.is_osi_approved && (
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          OSI
+                        </span>
+                      )}
+                      {license.is_fsf_approved && (
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          FSF
+                        </span>
+                      )}
+                      {license.is_deprecated && (
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          Deprecated
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3 text-sm space-x-2">
                       <button
@@ -389,15 +500,15 @@ export function LicenseManagement() {
           <p className="text-3xl font-bold text-gray-900">{licenses.length}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-gray-600 text-sm">Approved</p>
+          <p className="text-gray-600 text-sm">OSI Approved</p>
           <p className="text-3xl font-bold text-green-600">
-            {licenses.filter((l) => l.is_approved).length}
+            {licenses.filter((l) => l.is_osi_approved).length}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-gray-600 text-sm">Pending Review</p>
-          <p className="text-3xl font-bold text-yellow-600">
-            {licenses.filter((l) => !l.is_approved).length}
+          <p className="text-gray-600 text-sm">Deprecated</p>
+          <p className="text-3xl font-bold text-red-600">
+            {licenses.filter((l) => l.is_deprecated).length}
           </p>
         </Card>
       </div>

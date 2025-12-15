@@ -6,6 +6,54 @@ import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
 import type { DocumentType, DocumentPublic, DocumentVersion } from "../types/api.js";
 
+// Document type configuration with icons, labels, and descriptions
+const DOC_TYPE_CONFIG: Record<DocumentType, {
+  label: string;
+  description: string;
+  icon: string;
+  color: string;
+  ragBoost?: string;
+}> = {
+  regulation: {
+    label: 'Regulations',
+    description: 'GDPR, CCPA, HIPAA, ISO 27001, SOC 2, etc.',
+    icon: '⚖️',
+    color: 'red',
+    ragBoost: 'Indexed for regulatory compliance queries'
+  },
+  policy: {
+    label: 'Internal Policies',
+    description: 'Your company data handling & compliance policies',
+    icon: '📋',
+    color: 'blue',
+    ragBoost: 'Indexed for policy comparison queries'
+  },
+  oss_policy: {
+    label: 'Engineering Guidelines',
+    description: 'Internal development standards & procedures',
+    icon: '⚙️',
+    color: 'purple',
+    ragBoost: 'Indexed for engineering compliance queries'
+  },
+  copyright_statute: {
+    label: 'Copyright Law',
+    description: 'Copyright Act, Digital Millennium Act, etc.',
+    icon: '©️',
+    color: 'orange',
+    ragBoost: 'Indexed for copyright compliance queries'
+  },
+  oss_license: {
+    label: 'OSS License',
+    description: 'MIT, GPL, Apache, BSD, etc. license files',
+    icon: '📜',
+    color: 'green',
+    ragBoost: 'Handled via License Management endpoint'
+  }
+};
+
+// Document types that use the document endpoint (exclude oss_license - it uses license endpoint)
+const DOCUMENT_ENDPOINT_TYPES: DocumentType[] = ['regulation', 'policy', 'oss_policy', 'copyright_statute'];
+
 export function Documents() {
   const [activeTab, setActiveTab] = useState<DocumentType>("regulation");
   const [showLatestOnly, setShowLatestOnly] = useState(true);
@@ -83,6 +131,7 @@ export function Documents() {
   };
 
   const filteredDocuments = documents?.filter((doc) => doc.doc_type === activeTab);
+  const config = DOC_TYPE_CONFIG[activeTab];
 
   return (
     <>
@@ -115,41 +164,57 @@ export function Documents() {
         </div>
       </header>
 
+      {/* Document Type Tabs */}
       <div className="pb-3">
-        <div className="flex border-b border-[#dedfe3] px-4 gap-8">
-          <button
-            onClick={() => setActiveTab("regulation")}
-            className={`flex flex-col items-center justify-center border-b-[3px] ${activeTab === "regulation"
-              ? "border-b-[#131416] text-[#131416]"
-              : "border-b-transparent text-[#6b7180]"
-              } pb-[13px] pt-4`}
-          >
-            <p className="text-sm font-bold leading-normal tracking-[0.015em]">
-              Regulations
-            </p>
-          </button>
-          <button
-            onClick={() => setActiveTab("policy")}
-            className={`flex flex-col items-center justify-center border-b-[3px] ${activeTab === "policy"
-              ? "border-b-[#131416] text-[#131416]"
-              : "border-b-transparent text-[#6b7180]"
-              } pb-[13px] pt-4`}
-          >
-            <p className="text-sm font-bold leading-normal tracking-[0.015em]">
-              Internal Policies
-            </p>
-          </button>
+        <div className="flex border-b border-[#dedfe3] px-4 gap-8 overflow-x-auto">
+          {DOCUMENT_ENDPOINT_TYPES.map((docType) => (
+            <button
+              key={docType}
+              onClick={() => setActiveTab(docType)}
+              className={`flex flex-col items-center justify-center border-b-[3px] whitespace-nowrap ${activeTab === docType
+                ? "border-b-[#131416] text-[#131416]"
+                : "border-b-transparent text-[#6b7180]"
+                } pb-[13px] pt-4`}
+              title={DOC_TYPE_CONFIG[docType].description}
+            >
+              <p className="text-sm font-bold leading-normal tracking-[0.015em]">
+                {DOC_TYPE_CONFIG[docType].icon} {DOC_TYPE_CONFIG[docType].label}
+              </p>
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* Document Type Info Banner */}
+      <div className="px-4 py-3">
+        {(() => {
+          const colorMap = {
+            red: 'bg-red-50 border-red-200 text-red-700',
+            blue: 'bg-blue-50 border-blue-200 text-blue-700',
+            purple: 'bg-purple-50 border-purple-200 text-purple-700',
+            orange: 'bg-orange-50 border-orange-200 text-orange-700',
+            green: 'bg-green-50 border-green-200 text-green-700',
+          } as Record<string, string>;
+          const colorClass = colorMap[config.color] || 'bg-gray-50 border-gray-200 text-gray-700';
+          return (
+            <div className={`rounded-lg border p-3 text-sm ${colorClass}`}>
+              <p className="font-medium">{config.icon} {config.label}</p>
+              <p className="text-xs mt-1">{config.description}</p>
+              <p className="text-xs mt-1 opacity-75">📊 {config.ragBoost}</p>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Upload Area */}
       <div className="flex flex-col p-4">
         <div className="flex flex-col items-center gap-6 rounded-lg border-2 border-dashed border-[#dedfe3] px-6 py-14">
           <div className="flex max-w-[480px] flex-col items-center gap-2">
             <p className="text-[#131416] text-lg font-bold leading-tight tracking-[-0.015em] text-center">
-              Drag and drop files here
+              {config.icon} Drag and drop files here
             </p>
             <p className="text-[#131416] text-sm font-normal leading-normal text-center">
-              Or click to browse
+              Or click to browse (PDF or TXT)
             </p>
           </div>
           <div>
@@ -159,8 +224,8 @@ export function Documents() {
               className="hidden"
               onChange={handleFileUpload}
               accept=".pdf,.txt"
-              aria-label="Upload document file"
-              title="Upload document file"
+              aria-label={`Upload ${config.label} file`}
+              title={`Upload ${config.label} file`}
             />
             <Button
               variant="secondary"

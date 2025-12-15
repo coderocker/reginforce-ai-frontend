@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 import type {
   DocumentPublic,
+  DocumentType,
   DocumentVersion,
   DocumentVersionsResponse,
   AnalysisRequest,
@@ -34,11 +35,11 @@ export const getDocument = async (id: number): Promise<DocumentPublic> => {
 
 export const uploadDocument = async (
   file: File,
-  doc_type: "regulation" | "policy"
+  doc_type: DocumentType
 ): Promise<DocumentPublic> => {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("doc_type", doc_type);
+  formData.append("doc_type", String(doc_type));
 
   const response = await apiClient.post<DocumentPublic>(
     "/api/documents/upload",
@@ -94,10 +95,59 @@ export const getReports = async (): Promise<ReportPublic[]> => {
   return response.data.items;
 };
 
+interface ReportWithGaps {
+  report: ReportPublic;
+  gaps: any[];
+  statistics?: any;
+}
+
 export const getReport = async (reportId: number): Promise<ReportPublic> => {
-  const response = await apiClient.get<ReportPublic>(`/api/analysis/reports/${reportId}`);
-  console.log('Raw API response for report:', JSON.stringify(response.data, null, 2));
-  return response.data;
+  const response = await apiClient.get<ReportWithGaps>(
+    `/api/analysis/reports/${reportId}?include_statistics=true`
+  );
+  
+  // Handle two possible response formats:
+  // Format 1: { report: {...}, gaps: [...] }
+  // Format 2: { id, status, gaps: [...] } (flat structure)
+  const data = response.data as any;
+  
+  if (data.report) {
+    // Format 1: nested structure
+    const { report, gaps } = data;
+    return {
+      ...report,
+      gaps: gaps || [],
+    };
+  } else {
+    // Format 2: flat structure (gaps already in data)
+    return {
+      ...data,
+      gaps: data.gaps || [],
+    };
+  }
+};
+
+export const pollReportStatus = async (
+  reportId: number,
+  maxWaitMs: number = 120000, // 2 minutes max
+  intervalMs: number = 1500 // Poll every 1.5 seconds
+): Promise<ReportPublic> => {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitMs) {
+    const report = await getReport(reportId);
+    
+    // Report is ready when it's no longer pending or processing
+    if (report.status !== 'pending' && report.status !== 'processing') {
+      return report;
+    }
+    
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  
+  // Timeout reached, return current state
+  return getReport(reportId);
 };
 
 export const getAnalysisStats = async (): Promise<AnalysisStats> => {

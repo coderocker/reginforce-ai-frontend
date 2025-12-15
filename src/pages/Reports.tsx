@@ -62,7 +62,13 @@ export function Reports() {
     fetchStatus,
     error: error?.message,
     errorStatus: (error as { response?: { status?: number } })?.response?.status,
-    report: report ? { id: report.id, status: report.status, gaps: report.gaps?.length } : null
+    report: report ? { 
+      id: report.id, 
+      status: report.status, 
+      gapsLength: report.gaps?.length,
+      gapsData: report.gaps,
+      allReportKeys: Object.keys(report)
+    } : null
   });
 
   useQuery({
@@ -158,18 +164,39 @@ export function Reports() {
       }, {} as Record<string, GapPublic[]>);
 
       console.log('Category groups:', categoryGroups);
+      console.log('First gap structure:', report.gaps[0]);
 
       Object.entries(categoryGroups).forEach(([category, gaps]) => {
-        // Debug risk scores
-        console.log(`Risk scores for ${category}:`, gaps.map(g => ({ risk_score: g.risk_score, type: typeof g.risk_score })));
+        // Debug: Log actual gap properties
+        if (gaps.length > 0) {
+          console.log(`Gap properties for ${category}:`, {
+            firstGap: gaps[0],
+            hasRiskScore: 'risk_score' in gaps[0],
+            riskScoreValue: (gaps[0] as any).risk_score,
+            hasSeverityLevel: 'severity_level' in gaps[0],
+            severityLevelValue: (gaps[0] as any).severity_level,
+          });
+        }
 
         clusters.push({
           category,
           gaps,
-          criticalCount: gaps.filter((g: GapPublic) => g.severity_level === 'critical').length,
-          highCount: gaps.filter((g: GapPublic) => g.severity_level === 'high').length,
-          mediumCount: gaps.filter((g: GapPublic) => g.severity_level === 'medium').length,
-          lowCount: gaps.filter((g: GapPublic) => g.severity_level === 'low').length,
+          criticalCount: gaps.filter((g: GapPublic) => {
+            const severity = (g as any).severity_level;
+            return severity === 'critical' || severity === 'CRITICAL';
+          }).length,
+          highCount: gaps.filter((g: GapPublic) => {
+            const severity = (g as any).severity_level;
+            return severity === 'high' || severity === 'HIGH';
+          }).length,
+          mediumCount: gaps.filter((g: GapPublic) => {
+            const severity = (g as any).severity_level;
+            return severity === 'medium' || severity === 'MEDIUM';
+          }).length,
+          lowCount: gaps.filter((g: GapPublic) => {
+            const severity = (g as any).severity_level;
+            return severity === 'low' || severity === 'LOW';
+          }).length,
         });
       });
     }
@@ -228,25 +255,37 @@ export function Reports() {
           <div className="grid grid-cols-4 gap-6">
             <div className="text-center">
               <div className="text-3xl font-bold text-red-600">
-                {report.gaps?.filter(g => g.severity_level === 'critical').length || 0}
+                {report.gaps?.filter(g => {
+                  const sev = (g as any).severity_level;
+                  return sev === 'critical' || sev === 'CRITICAL';
+                }).length || 0}
               </div>
               <div className="text-sm text-gray-600 mt-1">Critical Gaps</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-orange-600">
-                {report.gaps?.filter(g => g.severity_level === 'high').length || 0}
+                {report.gaps?.filter(g => {
+                  const sev = (g as any).severity_level;
+                  return sev === 'high' || sev === 'HIGH';
+                }).length || 0}
               </div>
               <div className="text-sm text-gray-600 mt-1">High Risk</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-yellow-600">
-                {report.gaps?.filter(g => g.severity_level === 'medium').length || 0}
+                {report.gaps?.filter(g => {
+                  const sev = (g as any).severity_level;
+                  return sev === 'medium' || sev === 'MEDIUM';
+                }).length || 0}
               </div>
               <div className="text-sm text-gray-600 mt-1">Medium Risk</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-green-600">
-                {report.gaps?.filter(g => g.severity_level === 'low').length || 0}
+                {report.gaps?.filter(g => {
+                  const sev = (g as any).severity_level;
+                  return sev === 'low' || sev === 'LOW';
+                }).length || 0}
               </div>
               <div className="text-sm text-gray-600 mt-1">Low Risk</div>
             </div>
@@ -300,8 +339,24 @@ export function Reports() {
         </Card>
       )}
 
-      {/* Gap Clusters */}
-      {hasReport && isProcessingComplete && clusters.length > 0 && (
+      {/* Debug: Show gaps status */}
+      {hasReport && (
+        <Card>
+          <div className="p-4 bg-gray-50">
+            <p className="text-sm font-semibold text-gray-700">Debug Info:</p>
+            <ul className="text-xs text-gray-600 mt-2 space-y-1">
+              <li>Report Status: <span className="font-mono">{report.status}</span></li>
+              <li>Has Gaps Data: <span className="font-mono">{report.gaps ? 'Yes' : 'No'}</span></li>
+              <li>Gaps Count: <span className="font-mono">{report.gaps?.length || 0}</span></li>
+              <li>Clusters Built: <span className="font-mono">{clusters.length}</span></li>
+              <li>isProcessingComplete: <span className="font-mono">{isProcessingComplete.toString()}</span></li>
+            </ul>
+          </div>
+        </Card>
+      )}
+
+      {/* Gap Clusters - Always show if gaps exist */}
+      {hasReport && (report.gaps?.length ?? 0) > 0 && clusters.length > 0 && (
         <div className="space-y-6">
           <h2 className="text-xl font-semibold text-gray-900">
             Compliance Gaps by Category

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../providers";
 import NewAnalysisModal from "../NewAnalysisModal";
@@ -15,6 +15,38 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
   const { logout } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [showChatSidebar, setShowChatSidebar] = useState(false);
+
+  // Extract document ID from URL for chat context
+  let currentDocumentId: number | undefined;
+  
+  // Try to extract from /documents/:id pattern
+  const documentIdMatch = location.pathname.match(/\/documents\/(\d+)/);
+  if (documentIdMatch && documentIdMatch[1]) {
+    currentDocumentId = parseInt(documentIdMatch[1], 10);
+  }
+  
+  // Fallback: if still not found, try to get from the last number in the URL
+  if (!currentDocumentId && location.pathname.includes("/documents/")) {
+    const pathSegments = location.pathname.split("/");
+    const documentIndex = pathSegments.indexOf("documents");
+    if (documentIndex !== -1 && documentIndex + 1 < pathSegments.length) {
+      const idStr = pathSegments[documentIndex + 1];
+      const parsed = parseInt(idStr, 10);
+      if (!isNaN(parsed)) {
+        currentDocumentId = parsed;
+      }
+    }
+  }
+
+  // Log for debugging
+  useEffect(() => {
+    console.log("MainLayout URL Debug:", {
+      pathname: location.pathname,
+      documentIdMatch: documentIdMatch?.[1],
+      currentDocumentId,
+      isDocumentPage: location.pathname.includes("/documents/")
+    });
+  }, [location.pathname, documentIdMatch, currentDocumentId]);
 
   const handleLogout = () => {
     logout();
@@ -195,9 +227,16 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
           <div className="layout-content-container flex flex-col max-w-[960px] flex-1 relative">
             <div className="absolute top-0 right-0 -mr-12">
               <button
-                onClick={() => setShowChatSidebar(!showChatSidebar)}
-                className="p-2 hover:bg-[#f1f2f3] rounded-lg transition-colors"
-                title="Toggle Compliance Assistant"
+                onClick={() => {
+                  console.log("Chat button clicked");
+                  setShowChatSidebar(!showChatSidebar);
+                }}
+                className={`p-2 rounded-lg transition-colors ${
+                  showChatSidebar 
+                    ? "bg-[#0f1729] text-white" 
+                    : "hover:bg-[#f1f2f3]"
+                }`}
+                title="Open Compliance Assistant Chat"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -213,8 +252,14 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
             {children}
           </div>
 
-          {/* Chat Sidebar */}
-          {showChatSidebar && <ComplianceAssistant isOpen={true} />}
+          {/* Chat Sidebar - Always available, optional document context */}
+          {showChatSidebar && (
+            <ComplianceAssistant 
+              isOpen={showChatSidebar}
+              documentId={currentDocumentId}
+              documentName={currentDocumentId ? `Document ${currentDocumentId}` : "General Chat"}
+            />
+          )}
         </div>
       </div>
       <NewAnalysisModal
