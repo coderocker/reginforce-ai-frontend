@@ -15,6 +15,7 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
   const { logout } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [showChatSidebar, setShowChatSidebar] = useState(false);
+  const [ossMenuOpen, setOssMenuOpen] = useState(false);
 
   // Extract document ID from URL for chat context
   let currentDocumentId: number | undefined;
@@ -38,6 +39,15 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
     }
   }
 
+  // Auto-open OSS menu if on OSS pages
+  useEffect(() => {
+    if (location.pathname.startsWith("/oss") || 
+        location.pathname === "/package-vetting" || 
+        location.pathname === "/licenses") {
+      setOssMenuOpen(true);
+    }
+  }, [location.pathname]);
+
   // Log for debugging
   useEffect(() => {
     console.log("MainLayout URL Debug:", {
@@ -54,6 +64,7 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const isActiveGroup = (prefix: string) => location.pathname.startsWith(prefix);
 
   return (
     <div
@@ -132,47 +143,97 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
                     </p>
                   </Link>
 
-                  <Link
-                    to="/package-vetting"
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isActive("/package-vetting")
-                      ? "bg-[#f1f2f3]"
-                      : "hover:bg-[#f1f2f3]"
+                  {/* OSS Compliance Section */}
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setOssMenuOpen(!ossMenuOpen)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors ${
+                        isActiveGroup("/oss") || isActive("/package-vetting") || isActive("/licenses")
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "hover:bg-[#f1f2f3]"
                       }`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24px"
-                      height="24px"
-                      fill="currentColor"
-                      viewBox="0 0 256 256"
                     >
-                      <path d="M216,40H136V24a8,8,0,0,0-16,0V40H40A16,16,0,0,0,24,56V176a16,16,0,0,0,16,16h72v16a8,8,0,0,0,16,0V192h48a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,136H40V56H216V176Zm-72,48v32a8,8,0,0,1-16,0V224a8,8,0,0,1,16,0Z" />
-                    </svg>
-                    <p className="text-[#131416] text-sm font-medium leading-normal">
-                      OSS Vetting
-                    </p>
-                  </Link>
+                      <div className="flex items-center gap-3">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24px"
+                          height="24px"
+                          fill="currentColor"
+                          viewBox="0 0 256 256"
+                        >
+                          <path d="M230.91,172A8,8,0,0,1,228,182.91l-96,56a8,8,0,0,1-8.06,0l-96-56A8,8,0,0,1,36,169.09l92,53.65,92-53.65A8,8,0,0,1,230.91,172ZM220,121.09l-92,53.65L36,121.09A8,8,0,0,0,28,134.91l96,56a8,8,0,0,0,8.06,0l96-56A8,8,0,1,0,220,121.09ZM24,80a8,8,0,0,1,4-6.91l96-56a8,8,0,0,1,8.06,0l96,56a8,8,0,0,1,0,13.82l-96,56a8,8,0,0,1-8.06,0l-96-56A8,8,0,0,1,24,80Zm23.88,0L128,126.74,208.12,80,128,33.26Z" />
+                        </svg>
+                        <p className="text-sm font-medium leading-normal">
+                          OSS Compliance
+                        </p>
+                      </div>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16px"
+                        height="16px"
+                        fill="currentColor"
+                        viewBox="0 0 256 256"
+                        className={`transition-transform ${ossMenuOpen ? "rotate-180" : ""}`}
+                      >
+                        <path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z" />
+                      </svg>
+                    </button>
 
-                  <Link
-                    to="/licenses"
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg ${isActive("/licenses")
-                      ? "bg-[#f1f2f3]"
-                      : "hover:bg-[#f1f2f3]"
-                      }`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24px"
-                      height="24px"
-                      fill="currentColor"
-                      viewBox="0 0 256 256"
-                    >
-                      <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H216v80H40ZM40,200V152H216v48Z" />
-                    </svg>
-                    <p className="text-[#131416] text-sm font-medium leading-normal">
-                      Licenses
-                    </p>
-                  </Link>
+                    {ossMenuOpen && (
+                      <div className="ml-4 mt-1 flex flex-col gap-1 border-l-2 border-emerald-200 pl-3">
+                        <Link
+                          to="/oss/projects"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/oss/projects")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          📁 Projects
+                        </Link>
+                        <Link
+                          to="/oss/sbom/upload"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/oss/sbom/upload")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          📤 Upload SBOM
+                        </Link>
+                        <Link
+                          to="/oss/components"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/oss/components")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          📦 Components
+                        </Link>
+                        <Link
+                          to="/package-vetting"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/package-vetting")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          🔍 Package Vetting
+                        </Link>
+                        <Link
+                          to="/licenses"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/licenses")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          ⚖️ Licenses
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </nav>
               </div>
 
@@ -212,7 +273,7 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
                       fill="currentColor"
                       viewBox="0 0 256 256"
                     >
-                      <path d="M112,216a8,8,0,0,1-8-8V40a8,8,0,0,1,16,0V208A8,8,0,0,1,112,216Zm76.37-52.37a8,8,0,1,1-11.31,11.31l24,24a8,8,0,0,0,11.31,0l24-24a8,8,0,0,1-11.31-11.31L224,176.69V160a8,8,0,0,1,16,0v40a8,8,0,0,1-8,8H192a8,8,0,0,1,0-16h16.69Zm0-125.26a8,8,0,0,1,11.31-11.31L224,47.31V32a8,8,0,0,1,16,0V72a8,8,0,0,1-8,8H192a8,8,0,0,1,0-16h16.69Z" />
+                      <path d="M112,216a8,8,0,0,1-8,8H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h56a8,8,0,0,1,0,16H48V208h56A8,8,0,0,1,112,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L196.69,120H104a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,221.66,122.34Z" />
                     </svg>
                     <p className="text-[#131416] text-sm font-medium leading-normal">
                       Logout

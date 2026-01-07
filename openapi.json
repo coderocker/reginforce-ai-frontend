@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Comply Lens Backend - Compliance Platform",
-    "description": "\n    ## Comply Lens - Regulatory & OSS Compliance Platform\n    \n    Comprehensive compliance platform supporting both regulatory (GDPR, DORA) and OSS/Copyright compliance.\n    \n    ### Regulatory Compliance Features\n    \n    * **Document Management**: Upload and process regulation and policy documents\n    * **Gap Analysis**: AI-powered semantic analysis to identify compliance gaps\n    * **Temporal Tracking**: Track gaps over time with status updates (NEW, EXISTING, RESOLVED, WORSENED)\n    * **Anomaly Detection**: Detect unusual spikes in gaps or risk scores\n    * **Policy Comparison**: Compare document versions and track changes\n    * **Remediation Roadmap**: AI-powered remediation strategies with effort estimation\n    * **Interactive Compliance Assistant**: ChatOps interface for compliance queries\n    \n    ### OSS & Copyright Compliance Features (NEW)\n    \n    * **CVE Vulnerability Scanning**: Real-time vulnerability checks using NIST NVD API\n    * **License Compatibility**: Automated license conflict detection (20+ licenses supported)\n    * **Comprehensive Reports**: Full compliance reports with security and legal analysis\n    * **Batch Processing**: Check multiple packages in a single request\n    * **Risk Assessment**: Critical, High, Medium, Low risk classification\n    \n    ### Infrastructure\n    \n    * **Caching**: Redis-based caching for fast report retrieval\n    * **Rate Limiting**: Distributed rate limiting for API protection\n    * **Async Processing**: Background task processing for long-running operations\n    \n    ### AI Providers\n    \n    Supports multiple AI providers through adapter pattern:\n    - Google Gemini\n    - OpenAI GPT\n    - Anthropic Claude\n    \n    Configure via `AI_PROVIDER` environment variable.\n    \n    ### Authentication\n    \n    This API uses OAuth2 with Keycloak for authentication. Click \"Authorize\" button to log in.\n    \n    **Organization Context:**\n    - Organizations are automatically selected based on your user profile\n    - Your JWT token will include your organization_id claim\n    - Users created via seed script:\n      - alice@acme.com / alice123 (Acme Corp - organization admin)\n      - bob@acme.com / bob123 (Acme Corp - compliance viewer)\n      - charlie@techstart.com / charlie123 (TechStart Inc - organization admin)\n      - diana@techstart.com / diana123 (TechStart Inc - compliance viewer)\n    \n    ### Workflow\n    \n    1. Upload regulation document (`POST /documents/upload`)\n    2. Upload policy document (`POST /documents/upload`)\n    3. Wait for processing to complete (check status via `GET /documents/{id}`)\n    4. Run gap analysis (`POST /analysis/run`)\n    5. Retrieve analysis report (`GET /analysis/{report_id}`)\n    ",
+    "description": "\n    ## Comply Lens - Regulatory & OSS Compliance Platform\n\n    Comprehensive compliance platform supporting both regulatory (GDPR, DORA) and OSS/Copyright compliance.\n\n    ### Regulatory Compliance Features\n\n    * **Document Management**: Upload and process regulation and policy documents\n    * **Gap Analysis**: AI-powered semantic analysis to identify compliance gaps\n    * **Temporal Tracking**: Track gaps over time with status updates (NEW, EXISTING, RESOLVED, WORSENED)\n    * **Anomaly Detection**: Detect unusual spikes in gaps or risk scores\n    * **Policy Comparison**: Compare document versions and track changes\n    * **Remediation Roadmap**: AI-powered remediation strategies with effort estimation\n    * **Interactive Compliance Assistant**: ChatOps interface for compliance queries\n\n    ### OSS & Copyright Compliance Features (NEW)\n\n    * **CVE Vulnerability Scanning**: Real-time vulnerability checks using NIST NVD API\n    * **License Compatibility**: Automated license conflict detection (20+ licenses supported)\n    * **Comprehensive Reports**: Full compliance reports with security and legal analysis\n    * **Batch Processing**: Check multiple packages in a single request\n    * **Risk Assessment**: Critical, High, Medium, Low risk classification\n\n    ### Infrastructure\n\n    * **Caching**: Redis-based caching for fast report retrieval\n    * **Rate Limiting**: Distributed rate limiting for API protection\n    * **Async Processing**: Background task processing for long-running operations\n\n    ### AI Providers\n\n    Supports multiple AI providers through adapter pattern:\n    - Google Gemini\n    - OpenAI GPT\n    - Anthropic Claude\n\n    Configure via `AI_PROVIDER` environment variable.\n\n    ### Authentication\n\n    This API uses OAuth2 with Keycloak for authentication. Click \"Authorize\" button to log in.\n\n    **Organization Context:**\n    - Organizations are automatically selected based on your user profile\n    - Your JWT token will include your organization_id claim\n    - Users created via seed script:\n      - alice@acme.com / alice123 (Acme Corp - organization admin)\n      - bob@acme.com / bob123 (Acme Corp - compliance viewer)\n      - charlie@techstart.com / charlie123 (TechStart Inc - organization admin)\n      - diana@techstart.com / diana123 (TechStart Inc - compliance viewer)\n\n    ### Workflow\n\n    1. Upload regulation document (`POST /documents/upload`)\n    2. Upload policy document (`POST /documents/upload`)\n    3. Wait for processing to complete (check status via `GET /documents/{id}`)\n    4. Run gap analysis (`POST /analysis/run`)\n    5. Retrieve analysis report (`GET /analysis/{report_id}`)\n    ",
     "version": "1.0.0"
   },
   "paths": {
@@ -61,19 +61,18 @@
           "Authentication"
         ],
         "summary": "Refresh Token",
-        "description": "Refresh an expired access token using a refresh token.\n\n**Request:**\n```json\n{\n  \"refresh_token\": \"your-refresh-token\"\n}\n```",
+        "description": "Refresh an expired access token using a refresh token.\n\nThis endpoint exchanges a valid refresh token for a new access token.\n\n**Request Body:**\n```json\n{\n  \"refresh_token\": \"your-refresh-token\"\n}\n```\n\n**Response includes:**\n- access_token: New JWT access token\n- expires_in: Token expiration time in seconds\n- refresh_token: New refresh token (if Keycloak provides one)",
         "operationId": "refresh_token_api_auth_refresh_post",
-        "parameters": [
-          {
-            "name": "refresh_token",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Refresh Token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
             }
-          }
-        ],
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -306,8 +305,8 @@
           "Documents",
           "Documents"
         ],
-        "summary": "List all documents",
-        "description": "List all uploaded documents.\n\n- Returns up to `limit` documents\n- Ordered by creation date (newest first)\n- Multi-tenant: Only returns documents belonging to the specified organization",
+        "summary": "List documents",
+        "description": "List uploaded documents with optional filtering for latest versions only.\n\nQuery Parameters:\n- `limit`: Maximum number of documents to return (default: 100)\n- `latest`: If true, return only the latest version of each document (default: false)\n\nReturns:\n- List of documents ordered by creation date (newest first)\n- Multi-tenant: Only returns documents belonging to the specified organization\n\nExamples:\n- `GET /api/documents/` - Returns all documents (all versions)\n- `GET /api/documents/?latest=true` - Returns only latest versions\n- `GET /api/documents/?latest=true&limit=50` - Returns up to 50 latest documents",
         "operationId": "list_documents_api_documents__get",
         "security": [
           {
@@ -326,6 +325,16 @@
               "type": "integer",
               "default": 100,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "latest",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Latest"
             }
           }
         ],
@@ -609,7 +618,7 @@
           "Documents"
         ],
         "summary": "Semantic document search using RAG",
-        "description": "Search documents using semantic similarity (RAG-powered).\n    \n    This endpoint uses vector embeddings to find relevant document sections\n    based on semantic meaning, not just keyword matching.\n    \n    **Example queries**:\n    - \"What are the data retention requirements?\"\n    - \"Encryption standards for personal data\"\n    - \"User consent and withdrawal procedures\"\n    \n    Multi-tenant: Searches only within documents belonging to the specified organization.",
+        "description": "Search documents using semantic similarity (RAG-powered).\n\n    This endpoint uses vector embeddings to find relevant document sections\n    based on semantic meaning, not just keyword matching.\n\n    **Example queries**:\n    - \"What are the data retention requirements?\"\n    - \"Encryption standards for personal data\"\n    - \"User consent and withdrawal procedures\"\n\n    Multi-tenant: Searches only within documents belonging to the specified organization.",
         "operationId": "semantic_search_api_documents_search_semantic_post",
         "requestBody": {
           "content": {
@@ -712,7 +721,7 @@
           "Chat"
         ],
         "summary": "List conversations",
-        "description": "List conversations for current organization.\n\n- Multi-tenant: Only returns conversations for the specified organization\n- Optional user filter to see specific user's conversations\n- Supports pagination via limit/offset",
+        "description": "List conversations for current user.\n\n- Multi-tenant: Only returns conversations for the specified organization\n- User-scoped: Users can only see their own conversations\n- Supports pagination via limit/offset",
         "operationId": "list_conversations_api_chat_conversations_get",
         "security": [
           {
@@ -752,23 +761,6 @@
               "default": false,
               "title": "Include Archived"
             }
-          },
-          {
-            "name": "user_filter",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "User Filter"
-            }
           }
         ],
         "responses": {
@@ -802,7 +794,7 @@
           "Chat"
         ],
         "summary": "Get conversation details",
-        "description": "Get detailed conversation information.\n\n- Multi-tenant: Only returns if conversation belongs to organization\n- Returns 404 if not found or belongs to different organization\n- Optionally includes message history",
+        "description": "Get detailed conversation information.\n\n- Multi-tenant: Only returns if conversation belongs to organization\n- User-scoped: Users can only access their own conversations\n- Returns 404 if not found or belongs to different user/organization\n- Optionally includes message history",
         "operationId": "get_conversation_api_chat_conversations__conversation_id__get",
         "security": [
           {
@@ -922,7 +914,7 @@
           "Chat"
         ],
         "summary": "Archive conversation",
-        "description": "Archive a conversation (soft delete).\n\n- Multi-tenant: Conversation must belong to organization\n- Sets status to ARCHIVED\n- Preserves all data for audit trail",
+        "description": "Archive a conversation (soft delete).\n\n- Multi-tenant: Conversation must belong to organization\n- User-scoped: Users can only archive their own conversations\n- Sets status to ARCHIVED\n- Preserves all data for audit trail",
         "operationId": "archive_conversation_api_chat_conversations__conversation_id__delete",
         "security": [
           {
@@ -967,7 +959,7 @@
           "Chat"
         ],
         "summary": "Send a message",
-        "description": "Send a message in a conversation.\n\n- Multi-tenant: Conversation must belong to organization\n- Creates message with automatic sequence numbering\n- Updates conversation activity timestamp",
+        "description": "Send a message in a conversation.\n\n- Multi-tenant: Conversation must belong to organization\n- User-scoped: Users can only send messages to their own conversations\n- Creates message with automatic sequence numbering\n- Automatically generates AI response asynchronously\n- Updates conversation activity timestamp",
         "operationId": "send_message_api_chat_conversations__conversation_id__messages_post",
         "security": [
           {
@@ -1027,7 +1019,7 @@
           "Chat"
         ],
         "summary": "Get conversation messages",
-        "description": "Get messages for a conversation.\n\n- Multi-tenant: Conversation must belong to organization\n- Returns messages in chronological order\n- Supports pagination",
+        "description": "Get messages for a conversation.\n\n- Multi-tenant: Conversation must belong to organization\n- User-scoped: Users can only access messages from their own conversations\n- Returns messages in chronological order\n- Supports pagination",
         "operationId": "get_messages_api_chat_conversations__conversation_id__messages_get",
         "security": [
           {
@@ -1099,7 +1091,7 @@
           "Chat"
         ],
         "summary": "Add context to conversation",
-        "description": "Add contextual entity to a conversation.\n\n- Multi-tenant: Conversation must belong to organization\n- Links documents, analyses, or other entities to conversation\n- Used for context-aware AI responses",
+        "description": "Add contextual entity to a conversation.\n\n- Multi-tenant: Conversation must belong to organization\n- User-scoped: Users can only add context to their own conversations\n- Links documents, analyses, or other entities to conversation\n- Used for context-aware AI responses",
         "operationId": "add_context_api_chat_conversations__conversation_id__contexts_post",
         "security": [
           {
@@ -1308,7 +1300,7 @@
           "Analysis"
         ],
         "summary": "Create analysis report",
-        "description": "Create a new analysis report.\n\n- Requires JWT authentication\n- Multi-tenant: Scoped to user's organization\n- Documents must exist and belong to the organization\n- Report starts in 'pending' status",
+        "description": "Create a new analysis report.\n\n- Requires JWT authentication\n- Multi-tenant: Scoped to user's organization\n- Documents must exist and belong to the organization\n- Report starts in 'pending' status\n- Automatically triggers analysis in background",
         "operationId": "create_report_api_analysis_reports_post",
         "security": [
           {
@@ -4085,7 +4077,7 @@
           "OSS Compliance"
         ],
         "summary": "Check Live Cve",
-        "description": "Check package for CVE vulnerabilities using NIST NVD (live).",
+        "description": "Check package for CVE vulnerabilities using NIST NVD (live).\n\nArgs:\n    package_name: Name of the package (e.g., 'numpy', 'django')\n    version: Optional specific version to check (e.g., '1.21.0'). If not provided, checks all versions.\n\nReturns:\n    CVE report from NIST NVD database\n\nRaises:\n    404: Package not found in NIST database\n    503: API error or timeout",
         "operationId": "check_live_cve_api_oss_tools_cve__package_name__get",
         "security": [
           {
@@ -4104,6 +4096,24 @@
               "type": "string",
               "title": "Package Name"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional specific package version",
+              "title": "Version"
+            },
+            "description": "Optional specific package version"
           }
         ],
         "responses": {
@@ -4137,7 +4147,7 @@
           "OSS Compliance"
         ],
         "summary": "Check Live License",
-        "description": "Get license information for a package (live).",
+        "description": "Get license information for a package from PyPI (live).\n\nArgs:\n    package_name: Name of the package (e.g., 'requests', 'flask')\n    version: Optional specific version (e.g., '2.28.0'). If not provided, uses latest.\n\nReturns:\n    License and metadata from PyPI\n\nRaises:\n    404: Package or version not found on PyPI or npm\n    503: API error",
         "operationId": "check_live_license_api_oss_tools_license__package_name__get",
         "security": [
           {
@@ -4156,6 +4166,24 @@
               "type": "string",
               "title": "Package Name"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional specific package version",
+              "title": "Version"
+            },
+            "description": "Optional specific package version"
           }
         ],
         "responses": {
@@ -4245,6 +4273,851 @@
             }
           }
         }
+      }
+    },
+    "/api/oss/projects": {
+      "post": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Create Project",
+        "description": "Create a new project for SBOM tracking.\n\nProjects represent applications/codebases being analyzed for compliance.\nEach project can have multiple SBOMs (different releases/versions).",
+        "operationId": "create_project_api_oss_projects_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "List Projects",
+        "description": "List all projects for the organization.",
+        "operationId": "list_projects_api_oss_projects_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "title": "Is Active"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/projects/{project_id}": {
+      "get": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Get Project",
+        "description": "Get project by ID.",
+        "operationId": "get_project_api_oss_projects__project_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Update Project",
+        "description": "Update a project.",
+        "operationId": "update_project_api_oss_projects__project_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/sbom/upload": {
+      "post": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Upload Sbom",
+        "description": "Upload and process an SBOM file (CSV/JSON).\n\n**Auto-Classification Rules:**\n- GPL/LGPL/AGPL licenses → `NOT_ALLOWED` (copyleft restrictions)\n- MIT/Apache/BSD licenses → `CHECK_WITH_LEGAL` (needs verification)\n- Unknown licenses → `PENDING_REVIEW` (needs manual review)\n\n**RAG Indexing:**\n- Only reviewed decisions (not PENDING_REVIEW) are indexed\n- Enables chatbot to answer questions about compliance decisions\n\n**Supported Formats:**\n- CSV with columns: package_name, package_version, license_spdx, [ecosystem]\n- JSON: CycloneDX, SPDX, or simple array format",
+        "operationId": "upload_sbom_api_oss_sbom_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_sbom_api_oss_sbom_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomIngestionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/oss/sboms": {
+      "get": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "List Sboms",
+        "description": "List SBOMs, optionally filtered by project.",
+        "operationId": "list_sboms_api_oss_sboms_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by project ID",
+              "title": "Project Id"
+            },
+            "description": "Filter by project ID"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/sboms/{sbom_id}": {
+      "get": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Get Sbom",
+        "description": "Get SBOM by ID.",
+        "operationId": "get_sbom_api_oss_sboms__sbom_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sbom_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sbom Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/components": {
+      "get": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "List Components",
+        "description": "List SBOM components with filters.\n\nSupports filtering by SBOM, project, package name, license, status, etc.",
+        "operationId": "list_components_api_oss_components_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sbom_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by SBOM ID",
+              "title": "Sbom Id"
+            },
+            "description": "Filter by SBOM ID"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Project ID",
+              "title": "Project Id"
+            },
+            "description": "Filter by Project ID"
+          },
+          {
+            "name": "package_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search by package name (partial match)",
+              "title": "Package Name"
+            },
+            "description": "Search by package name (partial match)"
+          },
+          {
+            "name": "license_spdx",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by license (partial match)",
+              "title": "License Spdx"
+            },
+            "description": "Filter by license (partial match)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ComplianceStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by compliance status",
+              "title": "Status"
+            },
+            "description": "Filter by compliance status"
+          },
+          {
+            "name": "linking_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LinkingType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by linking type",
+              "title": "Linking Type"
+            },
+            "description": "Filter by linking type"
+          },
+          {
+            "name": "rag_indexed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by RAG indexing status",
+              "title": "Rag Indexed"
+            },
+            "description": "Filter by RAG indexing status"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomComponentList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/components/{component_id}": {
+      "get": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Get Component",
+        "description": "Get SBOM component by ID.",
+        "operationId": "get_component_api_oss_components__component_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Component Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomComponentPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Update Component",
+        "description": "Update a component's compliance status and linking type.\n\nUse this endpoint to:\n- Review and approve/reject a component\n- Set the linking type after analysis\n- Add review notes for compliance documentation\n\n**Note:** Updates to reviewed components are re-indexed to RAG.",
+        "operationId": "update_component_api_oss_components__component_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Component Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SbomComponentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomComponentPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/components/{component_id}/review": {
+      "post": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Review Component",
+        "description": "Review a component with required linking type and status.\n\nThis is the formal review action - requires both linking_type and status.\nReviewed components are indexed to RAG for chatbot access.",
+        "operationId": "review_component_api_oss_components__component_id__review_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Component Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SbomComponentPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oss/components/bulk-review": {
+      "post": {
+        "tags": [
+          "OSS Compliance",
+          "OSS Compliance"
+        ],
+        "summary": "Bulk Review Components",
+        "description": "Bulk review multiple components with the same decision.\n\nUseful for:\n- Batch approval of components with the same license\n- Mass rejection of GPL components\n- Applying linking type to multiple components\n\nAll updated components are indexed to RAG.",
+        "operationId": "bulk_review_components_api_oss_components_bulk_review_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentBulkReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentBulkReviewResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/audit/logs": {
@@ -5766,6 +6639,39 @@
         ],
         "title": "Body_upload_new_version_api_documents__doc_id__new_version_post"
       },
+      "Body_upload_sbom_api_oss_sbom_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File",
+            "description": "SBOM file (CSV or JSON format)"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id",
+            "description": "Project to attach SBOM to"
+          },
+          "sbom_name": {
+            "type": "string",
+            "title": "Sbom Name",
+            "description": "SBOM name, e.g., 'main-app', 'backend'"
+          },
+          "release_version": {
+            "type": "string",
+            "title": "Release Version",
+            "description": "Version, e.g., 'v1.2.3'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "project_id",
+          "sbom_name",
+          "release_version"
+        ],
+        "title": "Body_upload_sbom_api_oss_sbom_upload_post"
+      },
       "ChatAuditLogCreate": {
         "properties": {
           "conversation_id": {
@@ -6262,6 +7168,115 @@
         ],
         "title": "ChatStatistics",
         "description": "Chat audit statistics response."
+      },
+      "ComplianceStatus": {
+        "type": "string",
+        "enum": [
+          "allowed",
+          "not_allowed",
+          "check_with_legal",
+          "pending_review"
+        ],
+        "title": "ComplianceStatus",
+        "description": "Compliance decision status for a component.\n\nWorkflow: PENDING_REVIEW → (human review) → ALLOWED | NOT_ALLOWED | CHECK_WITH_LEGAL"
+      },
+      "ComponentBulkReviewRequest": {
+        "properties": {
+          "component_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Component Ids",
+            "description": "Component IDs to update"
+          },
+          "linking_type": {
+            "$ref": "#/components/schemas/LinkingType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplianceStatus"
+          },
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component_ids",
+          "linking_type",
+          "status"
+        ],
+        "title": "ComponentBulkReviewRequest",
+        "description": "Bulk review multiple components with same decision."
+      },
+      "ComponentBulkReviewResult": {
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated",
+          "failed"
+        ],
+        "title": "ComponentBulkReviewResult",
+        "description": "Result of bulk component review."
+      },
+      "ComponentReviewRequest": {
+        "properties": {
+          "linking_type": {
+            "$ref": "#/components/schemas/LinkingType",
+            "description": "Required: How is this component linked?"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplianceStatus",
+            "description": "Required: Compliance decision"
+          },
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes",
+            "description": "Optional: Notes for decision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "linking_type",
+          "status"
+        ],
+        "title": "ComponentReviewRequest",
+        "description": "Request to review/approve component."
       },
       "ConversationContextCreate": {
         "properties": {
@@ -7900,11 +8915,29 @@
         "title": "LicenseType",
         "description": "Type of open source license."
       },
+      "LinkingType": {
+        "type": "string",
+        "enum": [
+          "dynamically_linked",
+          "statically_linked",
+          "separate_work",
+          "merely_aggregated",
+          "prerequisite",
+          "dev_tool_excluded",
+          "unknown"
+        ],
+        "title": "LinkingType",
+        "description": "How a component is linked/integrated into the project.\n\nThis affects license compliance - e.g., GPL restrictions differ based on linking."
+      },
       "LiveCVECheckResponse": {
         "properties": {
           "package": {
             "type": "string",
             "title": "Package"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
           },
           "vulnerabilities": {
             "items": {
@@ -7922,6 +8955,28 @@
             "type": "object",
             "title": "Summary"
           },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          },
+          "license_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License Source"
+          },
           "source": {
             "type": "string",
             "title": "Source"
@@ -7934,6 +8989,7 @@
         "type": "object",
         "required": [
           "package",
+          "version",
           "vulnerabilities",
           "status",
           "summary",
@@ -7993,6 +9049,10 @@
             "type": "string",
             "title": "Package"
           },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
           "license": {
             "type": "string",
             "title": "License"
@@ -8015,15 +9075,37 @@
           "message": {
             "type": "string",
             "title": "Message"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "home_page": {
+            "type": "string",
+            "title": "Home Page"
+          },
+          "project_urls": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Project Urls"
+          },
+          "last_checked": {
+            "type": "string",
+            "title": "Last Checked"
           }
         },
         "type": "object",
         "required": [
           "package",
+          "version",
           "license",
           "verified",
           "spdx_id",
-          "message"
+          "message",
+          "source",
+          "home_page",
+          "project_urls",
+          "last_checked"
         ],
         "title": "LiveLicenseCheckResponse",
         "description": "Live license check response."
@@ -9481,6 +10563,172 @@
         "title": "ProcessingStatus",
         "description": "Processing status for documents."
       },
+      "ProjectCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreate",
+        "description": "Create project request."
+      },
+      "ProjectList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectPublic"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "ProjectList",
+        "description": "List of projects."
+      },
+      "ProjectPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Organization Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "organization_id",
+          "name",
+          "is_active",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectPublic",
+        "description": "Public project response."
+      },
+      "ProjectUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "ProjectUpdate",
+        "description": "Update project request."
+      },
+      "RefreshTokenRequest": {
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshTokenRequest",
+        "description": "Refresh token request."
+      },
       "RemediationPlanCreate": {
         "properties": {
           "analysis_report_id": {
@@ -10034,6 +11282,378 @@
         ],
         "title": "ReportWithGaps",
         "description": "Analysis report with its gaps."
+      },
+      "SbomComponentList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SbomComponentPublic"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "SbomComponentList",
+        "description": "List of SBOM components."
+      },
+      "SbomComponentPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Organization Id"
+          },
+          "sbom_id": {
+            "type": "integer",
+            "title": "Sbom Id"
+          },
+          "package_name": {
+            "type": "string",
+            "title": "Package Name"
+          },
+          "package_version": {
+            "type": "string",
+            "title": "Package Version"
+          },
+          "package_ecosystem": {
+            "type": "string",
+            "title": "Package Ecosystem"
+          },
+          "license_spdx": {
+            "type": "string",
+            "title": "License Spdx"
+          },
+          "linking_type": {
+            "$ref": "#/components/schemas/LinkingType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplianceStatus"
+          },
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes"
+          },
+          "rag_indexed": {
+            "type": "boolean",
+            "title": "Rag Indexed"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "organization_id",
+          "sbom_id",
+          "package_name",
+          "package_version",
+          "package_ecosystem",
+          "license_spdx",
+          "linking_type",
+          "status",
+          "rag_indexed",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SbomComponentPublic",
+        "description": "Public SBOM component response."
+      },
+      "SbomComponentUpdate": {
+        "properties": {
+          "linking_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkingType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How component is linked"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplianceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Compliance decision"
+          },
+          "review_notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Notes",
+            "description": "Legal/compliance notes"
+          }
+        },
+        "type": "object",
+        "title": "SbomComponentUpdate",
+        "description": "Update SBOM component compliance status."
+      },
+      "SbomIngestionError": {
+        "properties": {
+          "package_name": {
+            "type": "string",
+            "title": "Package Name"
+          },
+          "package_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Version"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "package_name",
+          "error"
+        ],
+        "title": "SbomIngestionError",
+        "description": "Error during SBOM component ingestion."
+      },
+      "SbomIngestionResult": {
+        "properties": {
+          "sbom_id": {
+            "type": "integer",
+            "title": "Sbom Id"
+          },
+          "sbom_name": {
+            "type": "string",
+            "title": "Sbom Name"
+          },
+          "release_version": {
+            "type": "string",
+            "title": "Release Version"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "successful": {
+            "type": "integer",
+            "title": "Successful",
+            "default": 0
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
+          },
+          "auto_classified": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Auto Classified"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/SbomIngestionError"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "sbom_id",
+          "sbom_name",
+          "release_version",
+          "project_id"
+        ],
+        "title": "SbomIngestionResult",
+        "description": "Result of SBOM file ingestion."
+      },
+      "SbomList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SbomPublic"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "SbomList",
+        "description": "List of SBOMs."
+      },
+      "SbomPublic": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Organization Id"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "release_version": {
+            "type": "string",
+            "title": "Release Version"
+          },
+          "total_components": {
+            "type": "integer",
+            "title": "Total Components"
+          },
+          "components_allowed": {
+            "type": "integer",
+            "title": "Components Allowed"
+          },
+          "components_not_allowed": {
+            "type": "integer",
+            "title": "Components Not Allowed"
+          },
+          "components_pending": {
+            "type": "integer",
+            "title": "Components Pending"
+          },
+          "processed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed At"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "organization_id",
+          "project_id",
+          "name",
+          "release_version",
+          "total_components",
+          "components_allowed",
+          "components_not_allowed",
+          "components_pending",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SbomPublic",
+        "description": "Public SBOM response."
       },
       "SemanticSearchRequest": {
         "properties": {

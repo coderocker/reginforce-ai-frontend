@@ -4,9 +4,228 @@ import type {
   LiveLicenseCheckResponse,
   LiveCompatibilityCheckResponse,
   VulnerabilityStatistics,
+  Project,
+  ProjectCreate,
+  ProjectUpdate,
+  ProjectList,
+  Sbom,
+  SbomList,
+  SbomIngestionResult,
+  SbomComponent,
+  SbomComponentList,
+  ComponentFilter,
+  ComponentReviewRequest,
+  ComponentBulkReviewRequest,
+  ComponentBulkReviewResult,
+  ComplianceStatistics,
 } from "../types/oss";
 
 class OSSService {
+  // =====================
+  // Projects
+  // =====================
+
+  /**
+   * Create a new project
+   * POST /api/oss/projects
+   */
+  async createProject(data: ProjectCreate): Promise<Project> {
+    const response = await apiClient.post<Project>("/api/oss/projects", data);
+    return response.data;
+  }
+
+  /**
+   * List all projects
+   * GET /api/oss/projects
+   */
+  async listProjects(params?: { is_active?: boolean }): Promise<ProjectList> {
+    const response = await apiClient.get<ProjectList>("/api/oss/projects", { params });
+    return response.data;
+  }
+
+  /**
+   * Get a single project
+   * GET /api/oss/projects/{id}
+   */
+  async getProject(id: number): Promise<Project> {
+    const response = await apiClient.get<Project>(`/api/oss/projects/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Update a project
+   * PATCH /api/oss/projects/{id}
+   */
+  async updateProject(id: number, data: ProjectUpdate): Promise<Project> {
+    const response = await apiClient.patch<Project>(`/api/oss/projects/${id}`, data);
+    return response.data;
+  }
+
+  // =====================
+  // SBOMs
+  // =====================
+
+  /**
+   * Upload SBOM file
+   * POST /api/oss/sbom/upload
+   */
+  async uploadSbom(
+    file: File,
+    projectId: number,
+    sbomName: string,
+    releaseVersion: string
+  ): Promise<SbomIngestionResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("project_id", projectId.toString());
+    formData.append("sbom_name", sbomName);
+    formData.append("release_version", releaseVersion);
+
+    const response = await apiClient.post<SbomIngestionResult>(
+      "/api/oss/sbom/upload",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  }
+
+  /**
+   * List SBOMs
+   * GET /api/oss/sboms
+   */
+  async listSboms(params?: { project_id?: number }): Promise<SbomList> {
+    const response = await apiClient.get<SbomList>("/api/oss/sboms", { params });
+    return response.data;
+  }
+
+  /**
+   * Get a single SBOM
+   * GET /api/oss/sboms/{id}
+   */
+  async getSbom(id: number): Promise<Sbom> {
+    const response = await apiClient.get<Sbom>(`/api/oss/sboms/${id}`);
+    return response.data;
+  }
+
+  // =====================
+  // Components
+  // =====================
+
+  /**
+   * List components with filtering
+   * GET /api/oss/components
+   */
+  async listComponents(params: ComponentFilter): Promise<SbomComponentList> {
+    const response = await apiClient.get<SbomComponentList>("/api/oss/components", { params });
+    return response.data;
+  }
+
+  /**
+   * Get a single component
+   * GET /api/oss/components/{id}
+   */
+  async getComponent(id: number): Promise<SbomComponent> {
+    const response = await apiClient.get<SbomComponent>(`/api/oss/components/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Update a component (partial update)
+   * PATCH /api/oss/components/{id}
+   */
+  async updateComponent(
+    id: number,
+    data: Partial<ComponentReviewRequest>
+  ): Promise<SbomComponent> {
+    const response = await apiClient.patch<SbomComponent>(
+      `/api/oss/components/${id}`,
+      data
+    );
+    return response.data;
+  }
+
+  /**
+   * Review a component (formal review with required fields)
+   * POST /api/oss/components/{id}/review
+   */
+  async reviewComponent(id: number, data: ComponentReviewRequest): Promise<SbomComponent> {
+    const response = await apiClient.post<SbomComponent>(
+      `/api/oss/components/${id}/review`,
+      data
+    );
+    return response.data;
+  }
+
+  /**
+   * Bulk review multiple components
+   * POST /api/oss/components/bulk-review
+   */
+  async bulkReviewComponents(data: ComponentBulkReviewRequest): Promise<ComponentBulkReviewResult> {
+    const response = await apiClient.post<ComponentBulkReviewResult>(
+      "/api/oss/components/bulk-review",
+      data
+    );
+    return response.data;
+  }
+
+  // =====================
+  // Statistics
+  // =====================
+
+  /**
+   * Get compliance statistics across all projects
+   */
+  async getComplianceStatistics(): Promise<ComplianceStatistics> {
+    try {
+      // Aggregate stats from projects and components
+      const [projectsResponse, componentsResponse] = await Promise.all([
+        this.listProjects({ is_active: true }),
+        this.listComponents({ limit: 1 }), // Just to get totals
+      ]);
+
+      const projects = projectsResponse.items;
+      const sbomResponses = await Promise.all(
+        projects.slice(0, 5).map((p) => this.listSboms({ project_id: p.id }).catch(() => ({ items: [], total: 0 })))
+      );
+
+      const totalSboms = sbomResponses.reduce((sum, r) => sum + r.total, 0);
+      
+      // Calculate component counts by status
+      const [allowed, notAllowed, checkLegal, pending] = await Promise.all([
+        this.listComponents({ status: "allowed" as any, limit: 1 }).catch(() => ({ total: 0 })),
+        this.listComponents({ status: "not_allowed" as any, limit: 1 }).catch(() => ({ total: 0 })),
+        this.listComponents({ status: "check_with_legal" as any, limit: 1 }).catch(() => ({ total: 0 })),
+        this.listComponents({ status: "pending_review" as any, limit: 1 }).catch(() => ({ total: 0 })),
+      ]);
+
+      return {
+        total_projects: projectsResponse.total,
+        total_sboms: totalSboms,
+        total_components: componentsResponse.total,
+        components_allowed: allowed.total,
+        components_not_allowed: notAllowed.total,
+        components_check_with_legal: checkLegal.total,
+        components_pending_review: pending.total,
+      };
+    } catch (error) {
+      // Return empty stats if API is not available
+      return {
+        total_projects: 0,
+        total_sboms: 0,
+        total_components: 0,
+        components_allowed: 0,
+        components_not_allowed: 0,
+        components_check_with_legal: 0,
+        components_pending_review: 0,
+      };
+    }
+  }
+
+  // =====================
+  // Existing Tools Endpoints
+  // =====================
 
   /**
    * Check package for CVE vulnerabilities using NIST NVD (live)

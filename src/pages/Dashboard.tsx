@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { getDocuments, getReports, getAnalysisStats } from '../api';
+import { ossService } from '../services/ossService';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { StatusPill } from '../components/ui/StatusPill';
@@ -24,6 +25,13 @@ export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['analysis-stats'],
     queryFn: getAnalysisStats,
+  });
+
+  // Fetch OSS compliance stats
+  const { data: ossStats, isLoading: ossLoading } = useQuery({
+    queryKey: ['oss-compliance-stats'],
+    queryFn: () => ossService.getComplianceStatistics(),
+    staleTime: 60000, // 1 minute
   });
 
   // Calculate dashboard metrics from stats API
@@ -150,6 +158,97 @@ export function Dashboard() {
           </Card>
         </div>
 
+        {/* OSS Compliance Overview */}
+        <Card className="border-2 border-emerald-100">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                📊 License Compliance Overview
+              </h3>
+              <Link to="/oss/components">
+                <Button variant="secondary" size="sm">View All Components</Button>
+              </Link>
+            </div>
+            
+            {ossLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+              </div>
+            ) : ossStats && ossStats.total_components > 0 ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-3xl font-bold text-green-600">
+                      {ossStats.components_allowed}
+                    </p>
+                    <p className="text-sm text-green-700 mt-1 flex items-center justify-center gap-1">
+                      ✅ Allowed
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                    <p className="text-3xl font-bold text-red-600">
+                      {ossStats.components_not_allowed}
+                    </p>
+                    <p className="text-sm text-red-700 mt-1 flex items-center justify-center gap-1">
+                      ❌ Blocked
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-3xl font-bold text-amber-600">
+                      {ossStats.components_check_with_legal}
+                    </p>
+                    <p className="text-sm text-amber-700 mt-1 flex items-center justify-center gap-1">
+                      ⚠️ Legal Review
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-3xl font-bold text-gray-600">
+                      {ossStats.components_pending_review}
+                    </p>
+                    <p className="text-sm text-gray-700 mt-1 flex items-center justify-center gap-1">
+                      🔍 Pending
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-sm text-gray-600 pt-4 border-t border-gray-200">
+                  <div className="flex items-center gap-6">
+                    <span>📁 {ossStats.total_projects} Projects</span>
+                    <span>📦 {ossStats.total_sboms} SBOMs</span>
+                    <span>🧩 {ossStats.total_components} Total Components</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link to="/oss/sbom/upload" className="text-emerald-600 hover:text-emerald-700 font-medium">
+                      Upload SBOM
+                    </Link>
+                    <Link to="/oss/projects" className="text-blue-600 hover:text-blue-700 font-medium">
+                      Manage Projects
+                    </Link>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">📦</div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">No SBOM Data Yet</h4>
+                <p className="text-gray-600 mb-4">
+                  Upload your first SBOM to start tracking license compliance
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                  <Link to="/oss/projects">
+                    <Button variant="secondary">Create Project</Button>
+                  </Link>
+                  <Link to="/oss/sbom/upload">
+                    <Button variant="primary" className="bg-emerald-600 hover:bg-emerald-700">
+                      Upload SBOM
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
         {/* Risk Breakdown */}
         {stats && stats.total_gaps > 0 && (
           <Card>
@@ -184,7 +283,7 @@ export function Dashboard() {
         <Card>
           <div className="p-6">
             <h3 className="text-lg font-bold mb-4 text-gray-900">Quick Actions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <button
                 onClick={() => setShowNewAnalysis(true)}
                 className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
@@ -204,6 +303,17 @@ export function Dashboard() {
                 <div>
                   <h4 className="font-medium text-gray-900">Upload Documents</h4>
                   <p className="text-sm text-gray-600">Add new regulations or policies</p>
+                </div>
+              </Link>
+
+              <Link
+                to="/oss/sbom/upload"
+                className="flex items-center gap-3 p-4 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-colors text-left"
+              >
+                <div className="text-2xl">📦</div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Upload SBOM</h4>
+                  <p className="text-sm text-gray-600">Track OSS license compliance</p>
                 </div>
               </Link>
 
