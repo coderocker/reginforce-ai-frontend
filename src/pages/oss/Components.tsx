@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, Link } from "react-router-dom";
 import { ossService } from "../../services/ossService";
@@ -6,17 +6,26 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import {
   LinkingType,
+  LinkingTypeReviewStatus,
   ComplianceStatus,
   LINKING_TYPE_LABELS,
   LINKING_TYPE_ICONS,
   COMPLIANCE_STATUS_LABELS,
   COMPLIANCE_STATUS_ICONS,
   COMPLIANCE_STATUS_COLORS,
+  LINKING_TYPE_REVIEW_STATUS_LABELS,
+  LINKING_TYPE_REVIEW_STATUS_ICONS,
+  LINKING_TYPE_REVIEW_STATUS_COLORS,
+  DEPENDENCY_SOURCE_LABELS,
+  getConfidenceColor,
+  getFinalLinkingType,
+  parseLinkingTypeReasons,
 } from "../../types/oss";
 import type {
   SbomComponent,
   ComponentFilter,
   ComponentReviewRequest,
+  LinkingTypeOverrideRequest,
 } from "../../types/oss";
 
 export function Components() {
@@ -33,6 +42,10 @@ export function Components() {
       : undefined,
     status: searchParams.get("status") as ComplianceStatus | undefined,
     linking_type: searchParams.get("linking_type") as LinkingType | undefined,
+    linking_type_review_status: searchParams.get("review_status") as LinkingTypeReviewStatus | undefined,
+    confidence_max: searchParams.get("confidence_max")
+      ? parseInt(searchParams.get("confidence_max")!, 10)
+      : undefined,
     package_name: searchParams.get("search") || undefined,
     limit: 50,
     offset: 0,
@@ -43,6 +56,18 @@ export function Components() {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewingComponent, setReviewingComponent] = useState<SbomComponent | null>(null);
   const [isBulkReview, setIsBulkReview] = useState(false);
+
+  // Linking type review modal state
+  const [showLinkingTypeModal, setShowLinkingTypeModal] = useState(false);
+  const [linkingTypeComponent, setLinkingTypeComponent] = useState<SbomComponent | null>(null);
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overrideForm, setOverrideForm] = useState<LinkingTypeOverrideRequest>({
+    override_linking_type: LinkingType.UNKNOWN,
+    override_reason: "",
+  });
+
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Review form state
   const [reviewForm, setReviewForm] = useState<ComponentReviewRequest>({
@@ -104,6 +129,42 @@ export function Components() {
     },
   });
 
+  // Confirm linking type mutation
+  const confirmLinkingTypeMutation = useMutation({
+    mutationFn: (componentId: number) => ossService.confirmLinkingType(componentId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["oss-components"] });
+      setShowLinkingTypeModal(false);
+      setLinkingTypeComponent(null);
+      showToast("Linking type confirmed successfully", "success");
+    },
+    onError: (error: Error) => {
+      showToast(error.message || "Failed to confirm linking type", "error");
+    },
+  });
+
+  // Override linking type mutation
+  const overrideLinkingTypeMutation = useMutation({
+    mutationFn: ({ componentId, data }: { componentId: number; data: LinkingTypeOverrideRequest }) =>
+      ossService.overrideLinkingType(componentId, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["oss-components"] });
+      setShowLinkingTypeModal(false);
+      setLinkingTypeComponent(null);
+      setShowOverrideForm(false);
+      showToast("Linking type overridden successfully", "success");
+    },
+    onError: (error: Error) => {
+      showToast(error.message || "Failed to override linking type", "error");
+    },
+  });
+
+  // Toast helper
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
   // Filter handlers
   const updateFilter = (key: keyof ComponentFilter, value: any) => {
     const newFilters = { ...filters, [key]: value || undefined, offset: 0 };
@@ -115,8 +176,38 @@ export function Components() {
     if (newFilters.sbom_id) newParams.set("sbom", newFilters.sbom_id.toString());
     if (newFilters.status) newParams.set("status", newFilters.status);
     if (newFilters.linking_type) newParams.set("linking_type", newFilters.linking_type);
+    if (newFilters.linking_type_review_status) newParams.set("review_status", newFilters.linking_type_review_status);
+    if (newFilters.confidence_max) newParams.set("confidence_max", newFilters.confidence_max.toString());
     if (newFilters.package_name) newParams.set("search", newFilters.package_name);
     setSearchParams(newParams);
+  };
+
+  // Open linking type review modal
+  const openLinkingTypeReview = (component: SbomComponent) => {
+    setLinkingTypeComponent(component);
+    setShowOverrideForm(false);
+    setOverrideForm({
+      override_linking_type: component.linking_type,
+      override_reason: "",
+    });
+    setShowLinkingTypeModal(true);
+  };
+
+  // Handle confirm
+  const handleConfirmLinkingType = () => {
+    if (linkingTypeComponent) {
+      confirmLinkingTypeMutation.mutate(linkingTypeComponent.id);
+    }
+  };
+
+  // Handle override
+  const handleOverrideLinkingType = () => {
+    if (linkingTypeComponent) {
+      overrideLinkingTypeMutation.mutate({
+        componentId: linkingTypeComponent.id,
+        data: overrideForm,
+      });
+    }
   };
 
   // Selection handlers
@@ -298,8 +389,38 @@ export function Components() {
               ))}
             </select>
 
+            {/* Review Status Filter */}
+            <select
+              value={filters.linking_type_review_status || ""}
+              onChange={(e) =>
+                updateFilter("linking_type_review_status", e.target.value || undefined)
+              }
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">All Review Status</option>
+              {Object.entries(LinkingTypeReviewStatus).map(([key, value]) => (
+                <option key={value} value={value}>
+                  {LINKING_TYPE_REVIEW_STATUS_ICONS[value]} {LINKING_TYPE_REVIEW_STATUS_LABELS[value]}
+                </option>
+              ))}
+            </select>
+
+            {/* Confidence Filter */}
+            <select
+              value={filters.confidence_max?.toString() || ""}
+              onChange={(e) =>
+                updateFilter("confidence_max", e.target.value ? parseInt(e.target.value, 10) : undefined)
+              }
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">All Confidence</option>
+              <option value="50">Low (&lt; 50%)</option>
+              <option value="70">Medium (&lt; 70%)</option>
+              <option value="80">Needs Review (&lt; 80%)</option>
+            </select>
+
             {/* Clear Filters */}
-            {(filters.project_id || filters.sbom_id || filters.status || filters.linking_type || filters.package_name) && (
+            {(filters.project_id || filters.sbom_id || filters.status || filters.linking_type || filters.linking_type_review_status || filters.confidence_max || filters.package_name) && (
               <button
                 onClick={() => {
                   setFilters({ limit: 50, offset: 0 });
@@ -346,7 +467,7 @@ export function Components() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-4 py-3 text-left">
+                      <th className="px-3 py-3 text-left">
                         <input
                           type="checkbox"
                           checked={selectedIds.size === components.length && components.length > 0}
@@ -354,22 +475,25 @@ export function Components() {
                           className="rounded border-gray-300"
                         />
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase">
                         Package
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                        Version
-                      </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase">
                         License
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                        Linking
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase">
+                        Linking Type
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                        Status
+                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-900 uppercase">
+                        Confidence
                       </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">
+                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-900 uppercase">
+                        Review
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-900 uppercase">
+                        Compliance
+                      </th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-900 uppercase min-w-[140px]">
                         Actions
                       </th>
                     </tr>
@@ -382,6 +506,7 @@ export function Components() {
                         isSelected={selectedIds.has(component.id)}
                         onToggleSelect={() => toggleSelection(component.id)}
                         onReview={() => openReviewModal(component)}
+                        onOpenLinkingTypeReview={() => openLinkingTypeReview(component)}
                       />
                     ))}
                   </tbody>
@@ -436,6 +561,46 @@ export function Components() {
           error={reviewMutation.error || bulkReviewMutation.error}
         />
       )}
+
+      {/* Linking Type Review Modal */}
+      {showLinkingTypeModal && linkingTypeComponent && (
+        <LinkingTypeReviewModal
+          component={linkingTypeComponent}
+          showOverrideForm={showOverrideForm}
+          setShowOverrideForm={setShowOverrideForm}
+          overrideForm={overrideForm}
+          setOverrideForm={setOverrideForm}
+          onConfirm={handleConfirmLinkingType}
+          onOverride={handleOverrideLinkingType}
+          onClose={() => {
+            setShowLinkingTypeModal(false);
+            setLinkingTypeComponent(null);
+            setShowOverrideForm(false);
+          }}
+          isConfirming={confirmLinkingTypeMutation.isPending}
+          isOverriding={overrideLinkingTypeMutation.isPending}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 transition-all ${
+            toast.type === "success"
+              ? "bg-green-600 text-white"
+              : "bg-red-600 text-white"
+          }`}
+        >
+          <span>{toast.type === "success" ? "✅" : "❌"}</span>
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 hover:opacity-80"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -446,14 +611,20 @@ interface ComponentRowProps {
   isSelected: boolean;
   onToggleSelect: () => void;
   onReview: () => void;
+  onOpenLinkingTypeReview: () => void;
 }
 
-function ComponentRow({ component, isSelected, onToggleSelect, onReview }: ComponentRowProps) {
+function ComponentRow({ component, isSelected, onToggleSelect, onReview, onOpenLinkingTypeReview }: ComponentRowProps) {
   const statusColors = COMPLIANCE_STATUS_COLORS[component.status];
+  const finalLinkingType = getFinalLinkingType(component);
+  const confidence = component.linking_type_confidence ?? 0;
+  const confidenceColors = getConfidenceColor(confidence);
+  const reviewStatus = component.linking_type_review_status ?? LinkingTypeReviewStatus.PENDING;
+  const reviewStatusColors = LINKING_TYPE_REVIEW_STATUS_COLORS[reviewStatus];
 
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">
         <input
           type="checkbox"
           checked={isSelected}
@@ -461,41 +632,72 @@ function ComponentRow({ component, isSelected, onToggleSelect, onReview }: Compo
           className="rounded border-gray-300"
         />
       </td>
-      <td className="px-4 py-3">
-        <div className="font-medium text-gray-900">{component.package_name}</div>
-        <div className="text-xs text-gray-500">{component.package_ecosystem}</div>
+      <td className="px-3 py-3">
+        <div className="font-medium text-gray-900 text-sm">{component.package_name}</div>
+        <div className="text-xs text-gray-500">
+          {component.package_version} • {component.package_ecosystem}
+        </div>
       </td>
-      <td className="px-4 py-3 text-sm text-gray-600 font-mono">
-        {component.package_version}
-      </td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-3">
         <span className="px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded">
           {component.license_spdx}
         </span>
       </td>
-      <td className="px-4 py-3 text-sm">
-        <span title={LINKING_TYPE_LABELS[component.linking_type]}>
-          {LINKING_TYPE_ICONS[component.linking_type]}{" "}
-          <span className="text-gray-600">
-            {LINKING_TYPE_LABELS[component.linking_type]}
+      <td className="px-3 py-3">
+        <button
+          onClick={onOpenLinkingTypeReview}
+          className="flex items-center gap-1.5 text-sm hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+          title="Click to review linking type"
+        >
+          <span>{LINKING_TYPE_ICONS[finalLinkingType]}</span>
+          <span className="text-gray-700 text-xs">
+            {LINKING_TYPE_LABELS[finalLinkingType]}
           </span>
+          {reviewStatus === LinkingTypeReviewStatus.OVERRIDDEN && (
+            <span className="text-blue-500 text-xs" title="Overridden">✏️</span>
+          )}
+        </button>
+      </td>
+      <td className="px-3 py-3 text-center">
+        <span
+          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${confidenceColors.bg} ${confidenceColors.text}`}
+          title={`Confidence: ${confidence}%`}
+        >
+          {confidence}%
         </span>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-3 text-center">
         <span
-          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full ${statusColors.bg} ${statusColors.text} border ${statusColors.border}`}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${reviewStatusColors.bg} ${reviewStatusColors.text}`}
+        >
+          {LINKING_TYPE_REVIEW_STATUS_ICONS[reviewStatus]}
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${statusColors.bg} ${statusColors.text} border ${statusColors.border}`}
         >
           {COMPLIANCE_STATUS_ICONS[component.status]}
-          {COMPLIANCE_STATUS_LABELS[component.status]}
+          <span className="hidden sm:inline">{COMPLIANCE_STATUS_LABELS[component.status]}</span>
         </span>
       </td>
-      <td className="px-4 py-3">
-        <button
-          onClick={onReview}
-          className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-        >
-          Review
-        </button>
+      <td className="px-3 py-3">
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={onOpenLinkingTypeReview}
+            className="text-xs px-2 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded font-medium"
+            title="Review linking type"
+          >
+            🔗
+          </button>
+          <button
+            onClick={onReview}
+            className="text-xs px-2 py-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded font-medium"
+            title="Full review"
+          >
+            Review
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -633,3 +835,251 @@ function ReviewModal({
   );
 }
 
+// Linking Type Review Modal
+interface LinkingTypeReviewModalProps {
+  component: SbomComponent;
+  showOverrideForm: boolean;
+  setShowOverrideForm: (show: boolean) => void;
+  overrideForm: LinkingTypeOverrideRequest;
+  setOverrideForm: (form: LinkingTypeOverrideRequest) => void;
+  onConfirm: () => void;
+  onOverride: () => void;
+  onClose: () => void;
+  isConfirming: boolean;
+  isOverriding: boolean;
+}
+
+function LinkingTypeReviewModal({
+  component,
+  showOverrideForm,
+  setShowOverrideForm,
+  overrideForm,
+  setOverrideForm,
+  onConfirm,
+  onOverride,
+  onClose,
+  isConfirming,
+  isOverriding,
+}: LinkingTypeReviewModalProps) {
+  const confidence = component.linking_type_confidence ?? 0;
+  const confidenceColors = getConfidenceColor(confidence);
+  const reasons = parseLinkingTypeReasons(component.linking_type_reasons);
+  const reviewStatus = component.linking_type_review_status ?? LinkingTypeReviewStatus.PENDING;
+  const reviewStatusColors = LINKING_TYPE_REVIEW_STATUS_COLORS[reviewStatus];
+  const finalLinkingType = getFinalLinkingType(component);
+  const isReviewed = reviewStatus !== LinkingTypeReviewStatus.PENDING;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl max-w-xl w-full mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                🔗 Review Linking Type
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {component.package_name} @ {component.package_version}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-1"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 space-y-5">
+          {/* Package Info */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-gray-500">Ecosystem:</span>
+              <span className="ml-2 font-medium text-gray-900">{component.package_ecosystem}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Dependency Source:</span>
+              <span className="ml-2 font-medium text-gray-900">
+                {DEPENDENCY_SOURCE_LABELS[component.dependency_source] ?? "Unknown"}
+              </span>
+            </div>
+          </div>
+
+          {/* Computed Linking Type Box */}
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Computed Linking Type
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${reviewStatusColors.bg} ${reviewStatusColors.text}`}
+              >
+                {LINKING_TYPE_REVIEW_STATUS_ICONS[reviewStatus]}
+                {LINKING_TYPE_REVIEW_STATUS_LABELS[reviewStatus]}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{LINKING_TYPE_ICONS[component.linking_type]}</span>
+                <span className="font-semibold text-gray-900">
+                  {LINKING_TYPE_LABELS[component.linking_type]}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-gray-500">Confidence</span>
+                <div className={`text-lg font-bold ${confidenceColors.text}`}>
+                  {confidence}%
+                </div>
+              </div>
+            </div>
+
+            {/* Reasons */}
+            {reasons.length > 0 && (
+              <div className="mt-3">
+                <span className="text-xs font-medium text-gray-500">Reasons:</span>
+                <ul className="mt-1 space-y-1">
+                  {reasons.map((reason, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-600">
+                      <span className="text-gray-400">•</span>
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* If Overridden, show original vs final */}
+          {reviewStatus === LinkingTypeReviewStatus.OVERRIDDEN && component.linking_type_user_override && (
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-blue-600">✏️</span>
+                <span className="font-semibold text-blue-800">Override Applied</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-600">
+                  Original: {LINKING_TYPE_LABELS[component.linking_type]}
+                </span>
+                <span className="text-gray-400">→</span>
+                <span className="text-sm font-medium text-blue-700">
+                  {LINKING_TYPE_ICONS[component.linking_type_user_override]}{" "}
+                  {LINKING_TYPE_LABELS[component.linking_type_user_override]}
+                </span>
+              </div>
+              {component.linking_type_confirmed_at && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Reviewed at: {new Date(component.linking_type_confirmed_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Override Form */}
+          {showOverrideForm ? (
+            <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+              <h4 className="font-semibold text-amber-800 mb-3">Override Linking Type</h4>
+              
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Linking Type *
+                </label>
+                <select
+                  value={overrideForm.override_linking_type}
+                  onChange={(e) =>
+                    setOverrideForm({
+                      ...overrideForm,
+                      override_linking_type: e.target.value as LinkingType,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  {Object.entries(LinkingType).map(([key, value]) => (
+                    <option key={value} value={value}>
+                      {LINKING_TYPE_ICONS[value]} {LINKING_TYPE_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Override
+                </label>
+                <textarea
+                  value={overrideForm.override_reason || ""}
+                  onChange={(e) =>
+                    setOverrideForm({ ...overrideForm, override_reason: e.target.value })
+                  }
+                  placeholder="Why are you overriding the computed value?"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowOverrideForm(false)}
+                  disabled={isOverriding}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={onOverride}
+                  isLoading={isOverriding}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  Submit Override
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Action Buttons */
+            <div className="flex items-center gap-3">
+              {reviewStatus === LinkingTypeReviewStatus.PENDING ? (
+                <>
+                  <Button
+                    variant="primary"
+                    onClick={onConfirm}
+                    isLoading={isConfirming}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    ✅ Confirm
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowOverrideForm(true)}
+                    className="flex-1"
+                  >
+                    ✏️ Override
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowOverrideForm(true)}
+                  className="flex-1"
+                >
+                  ✏️ Change Override
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
+          <p className="text-xs text-gray-500 text-center">
+            Linking type affects GPL compliance requirements. Review carefully.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

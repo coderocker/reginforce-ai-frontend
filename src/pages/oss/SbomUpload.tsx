@@ -55,16 +55,33 @@ export function SbomUpload() {
 
   // File handlers
   const handleFileSelect = useCallback((file: File) => {
-    const validTypes = [".csv", ".json"];
+    // Check by extension
     const extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-    if (!validTypes.includes(extension)) {
-      alert("Please upload a CSV or JSON file");
+    const validExtensions = [".csv", ".json"];
+    
+    // Also check by MIME type for JSON files (some systems report different types)
+    const validMimeTypes = [
+      "text/csv",
+      "application/csv",
+      "application/json",
+      "text/json",
+      "application/x-json",
+    ];
+    
+    const isValidExtension = validExtensions.includes(extension);
+    const isValidMimeType = validMimeTypes.includes(file.type) || file.type === "";
+    
+    if (!isValidExtension && !isValidMimeType) {
+      alert(`Please upload a CSV or JSON file.\n\nReceived: ${file.name} (${file.type || 'unknown type'})`);
       return;
     }
+    
     if (file.size > 50 * 1024 * 1024) {
       alert("File size must be less than 50MB");
       return;
     }
+    
+    console.log(`📄 SBOM file selected: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(1)} KB)`);
     setSelectedFile(file);
     
     // Auto-fill sbom name from filename
@@ -95,13 +112,26 @@ export function SbomUpload() {
   }, []);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("📁 File input changed:", e.target.files);
     if (e.target.files && e.target.files.length > 0) {
-      handleFileSelect(e.target.files[0]);
+      const file = e.target.files[0];
+      console.log("📁 Selected file:", file.name, file.type, file.size);
+      handleFileSelect(file);
     }
+    // Reset input so same file can be selected again
+    e.target.value = "";
   };
 
   const canProceedToUpload = selectedProjectId !== null;
   const canUpload = selectedFile && sbomName.trim() && releaseVersion.trim();
+  
+  // Debug logging
+  console.log("🔍 Upload state:", {
+    selectedFile: selectedFile?.name || null,
+    sbomName,
+    releaseVersion,
+    canUpload,
+  });
 
   const resetUpload = () => {
     setCurrentStep("select-project");
@@ -328,8 +358,16 @@ export function SbomUpload() {
                     <p className="text-gray-700 mb-2">
                       Drag and drop your SBOM file here
                     </p>
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                        .csv
+                      </span>
+                      <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                        .json
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500 mb-4">
-                      Supports CSV or JSON (CycloneDX, SPDX)
+                      Supports CSV, CycloneDX JSON, SPDX JSON, or simple JSON array
                     </p>
                     <label className="inline-block cursor-pointer">
                       <span className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
@@ -337,7 +375,7 @@ export function SbomUpload() {
                       </span>
                       <input
                         type="file"
-                        accept=".csv,.json"
+                        accept=".csv,.json,application/json,text/csv"
                         onChange={handleFileInputChange}
                         className="hidden"
                       />
@@ -347,18 +385,90 @@ export function SbomUpload() {
               </div>
 
               {/* File Format Info */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-800 mb-2">
-                  📋 Expected CSV Format
-                </h4>
-                <code className="text-xs text-blue-700 block bg-blue-100 p-2 rounded">
-                  package_name,package_version,license_spdx,ecosystem
-                  <br />
-                  lodash,4.17.21,MIT,npm
-                  <br />
-                  express,4.18.2,MIT,npm
-                </code>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-2">
+                    📋 CSV Format
+                  </h4>
+                  <code className="text-xs text-blue-700 block bg-blue-100 p-2 rounded font-mono">
+                    package_name,package_version,license_spdx,ecosystem
+                    <br />
+                    lodash,4.17.21,MIT,npm
+                    <br />
+                    express,4.18.2,MIT,npm
+                  </code>
+                  <p className="text-xs text-blue-600 mt-2">
+                    Flexible columns: name/package_name, version/package_version, license/license_spdx
+                  </p>
+                </div>
+                
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h4 className="font-medium text-emerald-800 mb-2">
+                    📄 JSON Formats (3 styles supported)
+                  </h4>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 mb-1">Simple Array:</p>
+                      <code className="text-xs text-emerald-700 block bg-emerald-100 p-2 rounded font-mono">
+                        {'[{"name": "lodash", "version": "4.17.21", "license": "MIT"}]'}
+                      </code>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 mb-1">CycloneDX:</p>
+                      <code className="text-xs text-emerald-700 block bg-emerald-100 p-2 rounded font-mono">
+                        {'{"components": [{"name": "lodash", "version": "4.17.21", "license": "MIT"}]}'}
+                      </code>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 mb-1">SPDX:</p>
+                      <code className="text-xs text-emerald-700 block bg-emerald-100 p-2 rounded font-mono">
+                        {'{"packages": [{"name": "lodash", "version": "4.17.21", "license": "MIT"}]}'}
+                      </code>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Validation Status */}
+              {!canUpload && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-amber-800 mb-2">
+                    ⚠️ Please complete all required fields:
+                  </p>
+                  <ul className="text-sm text-amber-700 space-y-1">
+                    {!sbomName.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="text-red-500">✗</span> SBOM Name is required
+                      </li>
+                    )}
+                    {!releaseVersion.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="text-red-500">✗</span> Release Version is required
+                      </li>
+                    )}
+                    {!selectedFile && (
+                      <li className="flex items-center gap-2">
+                        <span className="text-red-500">✗</span> No file selected
+                      </li>
+                    )}
+                    {sbomName.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="text-green-500">✓</span> SBOM Name: {sbomName}
+                      </li>
+                    )}
+                    {releaseVersion.trim() && (
+                      <li className="flex items-center gap-2">
+                        <span className="text-green-500">✓</span> Release Version: {releaseVersion}
+                      </li>
+                    )}
+                    {selectedFile && (
+                      <li className="flex items-center gap-2">
+                        <span className="text-green-500">✓</span> File: {selectedFile.name}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">

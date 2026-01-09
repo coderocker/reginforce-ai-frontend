@@ -1,7 +1,7 @@
-import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getReport, getReportTrends } from "../api";
+import { getReport, getReportTrends, deleteReport } from "../api";
 import type { GapPublic } from "../types/api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -17,11 +17,47 @@ interface GapCluster {
   lowCount: number;
 }
 
+// Helper to get severity from either 'severity' (backend) or 'severity_level' (legacy)
+const getGapSeverity = (gap: GapPublic): string | null => {
+  return gap.severity || (gap as any).severity_level || null;
+};
+
+// Helper to get description from either 'description' (backend) or 'gap_description' (legacy)
+const getGapDescription = (gap: GapPublic): string => {
+  return gap.description || gap.gap_description || 'No description';
+};
+
 export function Reports() {
   const { reportId } = useParams<{ reportId: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const numericReportId = reportId ? parseInt(reportId, 10) : 0;
   const [expandedClusters, setExpandedClusters] = useState<Set<number>>(new Set());
   const [showAllClusters, setShowAllClusters] = useState<Set<number>>(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Toast helper
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteReport(numericReportId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['analysis-stats'] });
+      showToast("Report deleted successfully", "success");
+      // Navigate to reports list after short delay
+      setTimeout(() => navigate('/reports'), 1500);
+    },
+    onError: (error: Error) => {
+      showToast(error.message || "Failed to delete report", "error");
+      setShowDeleteConfirm(false);
+    },
+  });
 
   console.log('Reports page loaded with reportId:', reportId, 'numeric:', numericReportId);
 
@@ -144,10 +180,10 @@ export function Reports() {
           clusters.push({
             category: category,
             gaps: categoryGaps,
-            criticalCount: categoryGaps.filter(g => g.severity_level === 'critical').length,
-            highCount: categoryGaps.filter(g => g.severity_level === 'high').length,
-            mediumCount: categoryGaps.filter(g => g.severity_level === 'medium').length,
-            lowCount: categoryGaps.filter(g => g.severity_level === 'low').length,
+            criticalCount: categoryGaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'critical').length,
+            highCount: categoryGaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'high').length,
+            mediumCount: categoryGaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'medium').length,
+            lowCount: categoryGaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'low').length,
           });
         }
       });
@@ -171,32 +207,20 @@ export function Reports() {
         if (gaps.length > 0) {
           console.log(`Gap properties for ${category}:`, {
             firstGap: gaps[0],
+            hasSeverity: 'severity' in gaps[0],
+            severityValue: gaps[0].severity,
             hasRiskScore: 'risk_score' in gaps[0],
-            riskScoreValue: (gaps[0] as any).risk_score,
-            hasSeverityLevel: 'severity_level' in gaps[0],
-            severityLevelValue: (gaps[0] as any).severity_level,
+            riskScoreValue: gaps[0].risk_score,
           });
         }
 
         clusters.push({
           category,
           gaps,
-          criticalCount: gaps.filter((g: GapPublic) => {
-            const severity = (g as any).severity_level;
-            return severity === 'critical' || severity === 'CRITICAL';
-          }).length,
-          highCount: gaps.filter((g: GapPublic) => {
-            const severity = (g as any).severity_level;
-            return severity === 'high' || severity === 'HIGH';
-          }).length,
-          mediumCount: gaps.filter((g: GapPublic) => {
-            const severity = (g as any).severity_level;
-            return severity === 'medium' || severity === 'MEDIUM';
-          }).length,
-          lowCount: gaps.filter((g: GapPublic) => {
-            const severity = (g as any).severity_level;
-            return severity === 'low' || severity === 'LOW';
-          }).length,
+          criticalCount: gaps.filter((g: GapPublic) => getGapSeverity(g)?.toLowerCase() === 'critical').length,
+          highCount: gaps.filter((g: GapPublic) => getGapSeverity(g)?.toLowerCase() === 'high').length,
+          mediumCount: gaps.filter((g: GapPublic) => getGapSeverity(g)?.toLowerCase() === 'medium').length,
+          lowCount: gaps.filter((g: GapPublic) => getGapSeverity(g)?.toLowerCase() === 'low').length,
         });
       });
     }
@@ -207,10 +231,10 @@ export function Reports() {
       clusters.push({
         category: 'All Compliance Gaps',
         gaps: report.gaps,
-        criticalCount: report.gaps.filter(g => g.severity_level === 'critical').length,
-        highCount: report.gaps.filter(g => g.severity_level === 'high').length,
-        mediumCount: report.gaps.filter(g => g.severity_level === 'medium').length,
-        lowCount: report.gaps.filter(g => g.severity_level === 'low').length,
+        criticalCount: report.gaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'critical').length,
+        highCount: report.gaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'high').length,
+        mediumCount: report.gaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'medium').length,
+        lowCount: report.gaps.filter(g => getGapSeverity(g)?.toLowerCase() === 'low').length,
       });
     }
   }
@@ -247,6 +271,18 @@ export function Reports() {
                 Create Remediation Plan
               </Button>
             </Link>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={report.status === 'processing'}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                report.status === 'processing'
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+              }`}
+              title={report.status === 'processing' ? 'Cannot delete while processing' : 'Delete report'}
+            >
+              🗑️ Delete
+            </button>
           </div>
         </div>
 
@@ -256,7 +292,8 @@ export function Reports() {
             <div className="text-center">
               <div className="text-3xl font-bold text-red-600">
                 {report.gaps?.filter(g => {
-                  const sev = (g as any).severity_level;
+                  // Check both 'severity' (backend) and 'severity_level' (legacy)
+                  const sev = g.severity || (g as any).severity_level;
                   return sev === 'critical' || sev === 'CRITICAL';
                 }).length || 0}
               </div>
@@ -265,7 +302,7 @@ export function Reports() {
             <div className="text-center">
               <div className="text-3xl font-bold text-orange-600">
                 {report.gaps?.filter(g => {
-                  const sev = (g as any).severity_level;
+                  const sev = g.severity || (g as any).severity_level;
                   return sev === 'high' || sev === 'HIGH';
                 }).length || 0}
               </div>
@@ -274,7 +311,7 @@ export function Reports() {
             <div className="text-center">
               <div className="text-3xl font-bold text-yellow-600">
                 {report.gaps?.filter(g => {
-                  const sev = (g as any).severity_level;
+                  const sev = g.severity || (g as any).severity_level;
                   return sev === 'medium' || sev === 'MEDIUM';
                 }).length || 0}
               </div>
@@ -283,7 +320,7 @@ export function Reports() {
             <div className="text-center">
               <div className="text-3xl font-bold text-green-600">
                 {report.gaps?.filter(g => {
-                  const sev = (g as any).severity_level;
+                  const sev = g.severity || (g as any).severity_level;
                   return sev === 'low' || sev === 'LOW';
                 }).length || 0}
               </div>
@@ -417,7 +454,7 @@ export function Reports() {
                             <div className="flex items-center gap-2 mb-2">
                               <RiskBadge
                                 score={Math.round((Number(gap.risk_score) || 0) * 100)}
-                                severity={gap.severity_level}
+                                severity={getGapSeverity(gap) as any}
                               />
                               {gap.gap_type && (
                                 <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
@@ -425,8 +462,13 @@ export function Reports() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-gray-900 font-medium mb-1">
-                              {gap.gap_description}
+                            {gap.title && (
+                              <p className="text-gray-900 font-semibold mb-1">
+                                {gap.title}
+                              </p>
+                            )}
+                            <p className="text-gray-700 mb-1">
+                              {getGapDescription(gap)}
                             </p>
                             {gap.policy_section && (
                               <p className="text-gray-600 text-sm">
@@ -487,6 +529,84 @@ export function Reports() {
             </p>
           </div>
         </Card>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <span className="text-red-600 text-xl">⚠️</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Delete Analysis Report
+                </h3>
+              </div>
+            </div>
+
+            <div className="px-6 py-4">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to delete <strong>Report #{numericReportId}</strong>?
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-800">
+                  <strong>⚠️ Warning:</strong> This will also delete all associated compliance gaps 
+                  and cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+              <Button
+                variant="secondary"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className={`px-4 py-2 rounded-lg font-medium text-white transition-colors ${
+                  deleteMutation.isPending
+                    ? 'bg-red-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {deleteMutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                    Deleting...
+                  </span>
+                ) : (
+                  'Delete Report'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 transition-all ${
+            toast.type === "success"
+              ? "bg-green-600 text-white"
+              : "bg-red-600 text-white"
+          }`}
+        >
+          <span>{toast.type === "success" ? "✅" : "❌"}</span>
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 hover:opacity-80"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );

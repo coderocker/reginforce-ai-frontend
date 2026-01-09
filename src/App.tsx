@@ -13,6 +13,7 @@ import { Remediation } from "./pages/Remediation";
 import { PackageVetting } from "./pages/oss/PackageVetting";
 import { LicenseManagement } from "./pages/oss/LicenseManagement";
 import { Projects } from "./pages/oss/Projects";
+import { Sboms } from "./pages/oss/Sboms";
 import { SbomUpload } from "./pages/oss/SbomUpload";
 import { Components } from "./pages/oss/Components";
 
@@ -44,6 +45,7 @@ function App() {
                       <Route path="/package-vetting" element={<PackageVetting />} />
                       <Route path="/licenses" element={<LicenseManagement />} />
                       <Route path="/oss/projects" element={<Projects />} />
+                      <Route path="/oss/sboms" element={<Sboms />} />
                       <Route path="/oss/sbom/upload" element={<SbomUpload />} />
                       <Route path="/oss/components" element={<Components />} />
                       

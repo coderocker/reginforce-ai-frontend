@@ -14,6 +14,18 @@ export enum LinkingType {
   UNKNOWN = "unknown"
 }
 
+export enum LinkingTypeReviewStatus {
+  PENDING = "pending",
+  CONFIRMED = "confirmed",
+  OVERRIDDEN = "overridden"
+}
+
+export enum DependencySource {
+  BASE_IMAGE = "base_image",
+  APP_DEPENDENCY = "app_dependency",
+  UNKNOWN = "unknown"
+}
+
 export enum ComplianceStatus {
   ALLOWED = "allowed",
   NOT_ALLOWED = "not_allowed",
@@ -94,6 +106,14 @@ export interface SbomList {
   total: number;
 }
 
+export interface SbomDeleteResult {
+  sbom_id: number;
+  sbom_name: string;
+  components_deleted: number;
+  rag_entries_deleted: number;
+  rag_errors: string | null;
+}
+
 // === Components ===
 
 export interface SbomComponent {
@@ -112,6 +132,14 @@ export interface SbomComponent {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+  // New linking type inference fields
+  linking_type_confidence: number; // 0-100
+  linking_type_reasons: string; // JSON array string - parse with JSON.parse()
+  linking_type_review_status: LinkingTypeReviewStatus;
+  linking_type_user_override: LinkingType | null;
+  linking_type_confirmed_at: string | null;
+  linking_type_confirmed_by: string | null;
+  dependency_source: DependencySource;
 }
 
 export interface SbomComponentList {
@@ -128,6 +156,8 @@ export interface ComponentFilter {
   license_spdx?: string;
   status?: ComplianceStatus;
   linking_type?: LinkingType;
+  linking_type_review_status?: LinkingTypeReviewStatus;
+  confidence_max?: number; // Filter components with confidence <= this value
   rag_indexed?: boolean;
   limit?: number;
   offset?: number;
@@ -153,6 +183,24 @@ export interface ComponentBulkReviewResult {
     component_id: number;
     error: string;
   }>;
+}
+
+// === Linking Type Review Workflow ===
+
+export interface LinkingTypeOverrideRequest {
+  override_linking_type: LinkingType;
+  override_reason?: string;
+}
+
+export interface LinkingTypeReviewResponse {
+  component_id: number;
+  previous_linking_type: LinkingType;
+  final_linking_type: LinkingType;
+  review_status: LinkingTypeReviewStatus;
+  confidence: number;
+  reasons: string[];
+  confirmed_at: string;
+  confirmed_by: string;
 }
 
 // === Existing CVE/License Types ===
@@ -309,3 +357,76 @@ export const COMPLIANCE_STATUS_COLORS: Record<ComplianceStatus, { bg: string; te
   [ComplianceStatus.CHECK_WITH_LEGAL]: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
   [ComplianceStatus.PENDING_REVIEW]: { bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200" },
 };
+
+// === Linking Type Review Status UI Helpers ===
+
+export const LINKING_TYPE_REVIEW_STATUS_LABELS: Record<LinkingTypeReviewStatus, string> = {
+  [LinkingTypeReviewStatus.PENDING]: "Pending Review",
+  [LinkingTypeReviewStatus.CONFIRMED]: "Confirmed",
+  [LinkingTypeReviewStatus.OVERRIDDEN]: "Overridden",
+};
+
+export const LINKING_TYPE_REVIEW_STATUS_ICONS: Record<LinkingTypeReviewStatus, string> = {
+  [LinkingTypeReviewStatus.PENDING]: "⏳",
+  [LinkingTypeReviewStatus.CONFIRMED]: "✅",
+  [LinkingTypeReviewStatus.OVERRIDDEN]: "✏️",
+};
+
+export const LINKING_TYPE_REVIEW_STATUS_COLORS: Record<LinkingTypeReviewStatus, { bg: string; text: string; border: string }> = {
+  [LinkingTypeReviewStatus.PENDING]: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+  [LinkingTypeReviewStatus.CONFIRMED]: { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
+  [LinkingTypeReviewStatus.OVERRIDDEN]: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+};
+
+// === Dependency Source UI Helpers ===
+
+export const DEPENDENCY_SOURCE_LABELS: Record<DependencySource, string> = {
+  [DependencySource.BASE_IMAGE]: "Base Image",
+  [DependencySource.APP_DEPENDENCY]: "App Dependency",
+  [DependencySource.UNKNOWN]: "Unknown",
+};
+
+export const DEPENDENCY_SOURCE_ICONS: Record<DependencySource, string> = {
+  [DependencySource.BASE_IMAGE]: "🐳",
+  [DependencySource.APP_DEPENDENCY]: "📦",
+  [DependencySource.UNKNOWN]: "❓",
+};
+
+// === Confidence Helper Functions ===
+
+export function getConfidenceColor(confidence: number): { bg: string; text: string; border: string } {
+  if (confidence >= 80) {
+    return { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" };
+  } else if (confidence >= 50) {
+    return { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" };
+  } else {
+    return { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" };
+  }
+}
+
+export function getConfidenceLabel(confidence: number): string {
+  if (confidence >= 80) return "High";
+  if (confidence >= 50) return "Medium";
+  return "Low";
+}
+
+// === Helper to get final linking type considering overrides ===
+
+export function getFinalLinkingType(component: SbomComponent): LinkingType {
+  if (component.linking_type_review_status === LinkingTypeReviewStatus.OVERRIDDEN && component.linking_type_user_override) {
+    return component.linking_type_user_override;
+  }
+  return component.linking_type;
+}
+
+// === Helper to parse linking type reasons ===
+
+export function parseLinkingTypeReasons(reasonsJson: string | null | undefined): string[] {
+  if (!reasonsJson) return [];
+  try {
+    const parsed = JSON.parse(reasonsJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}

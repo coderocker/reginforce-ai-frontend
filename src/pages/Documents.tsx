@@ -1,7 +1,7 @@
 import { useState, Fragment } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDocuments, getDocumentVersions, uploadDocument, uploadNewVersion } from "../api";
+import { getDocuments, getDocumentVersions, uploadDocument, uploadNewVersion, updateDocumentType, deleteDocument } from "../api";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
 import type { DocumentType, DocumentPublic, DocumentVersion } from "../types/api.js";
@@ -54,11 +54,43 @@ const DOC_TYPE_CONFIG: Record<DocumentType, {
 // Document types that use the document endpoint (exclude oss_license - it uses license endpoint)
 const DOCUMENT_ENDPOINT_TYPES: DocumentType[] = ['regulation', 'policy', 'oss_policy', 'copyright_statute'];
 
+// Helper function to get badge color classes for document type
+const getDocTypeBadgeClass = (docType: DocumentType): string => {
+  const colorMap: Record<DocumentType, string> = {
+    regulation: 'bg-red-100 text-red-700',
+    policy: 'bg-blue-100 text-blue-700',
+    oss_policy: 'bg-purple-100 text-purple-700',
+    copyright_statute: 'bg-orange-100 text-orange-700',
+    oss_license: 'bg-green-100 text-green-700',
+  };
+  return colorMap[docType] || 'bg-gray-100 text-gray-700';
+};
+
+// Helper function to get upload area color classes
+const getUploadAreaClass = (docType: DocumentType): string => {
+  const colorMap: Record<DocumentType, string> = {
+    regulation: 'border-red-300 bg-red-50/30',
+    policy: 'border-blue-300 bg-blue-50/30',
+    oss_policy: 'border-purple-300 bg-purple-50/30',
+    copyright_statute: 'border-orange-300 bg-orange-50/30',
+    oss_license: 'border-green-300 bg-green-50/30',
+  };
+  return colorMap[docType] || 'border-[#dedfe3]';
+};
+
 export function Documents() {
   const [activeTab, setActiveTab] = useState<DocumentType>("regulation");
   const [showLatestOnly, setShowLatestOnly] = useState(true);
   const [expandedDocId, setExpandedDocId] = useState<number | null>(null);
   const [uploadingVersionFor, setUploadingVersionFor] = useState<number | null>(null);
+  
+  // Edit modal state
+  const [editingDoc, setEditingDoc] = useState<DocumentPublic | null>(null);
+  const [editDocType, setEditDocType] = useState<DocumentType>("regulation");
+  
+  // Delete confirmation state
+  const [deletingDoc, setDeletingDoc] = useState<DocumentPublic | null>(null);
+  
   const queryClient = useQueryClient();
 
   const { data: documents, isLoading } = useQuery({
@@ -80,14 +112,17 @@ export function Documents() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, doc_type }: { file: File; doc_type: DocumentType }) =>
-      uploadDocument(file, doc_type),
+    mutationFn: ({ file, doc_type }: { file: File; doc_type: DocumentType }) => {
+      console.log('📤 Uploading file:', file.name, 'as doc_type:', doc_type);
+      return uploadDocument(file, doc_type);
+    },
     onSuccess: (data) => {
-      console.log('Upload successful:', data);
+      console.log('✅ Upload successful:', data);
+      console.log('📋 Document type from server:', data.doc_type);
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
     onError: (error) => {
-      console.error('Upload failed:', error);
+      console.error('❌ Upload failed:', error);
       alert('Upload failed: ' + error.message);
     },
   });
@@ -106,6 +141,57 @@ export function Documents() {
       setUploadingVersionFor(null);
     },
   });
+
+  // Update document type mutation
+  const updateTypeMutation = useMutation({
+    mutationFn: ({ docId, doc_type }: { docId: number; doc_type: DocumentType }) =>
+      updateDocumentType(docId, doc_type),
+    onSuccess: (data) => {
+      console.log('✅ Document type updated:', data);
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      setEditingDoc(null);
+    },
+    onError: (error: any) => {
+      console.error('❌ Update failed:', error);
+      alert('Failed to update document type: ' + (error.response?.data?.detail || error.message));
+    },
+  });
+
+  // Delete document mutation
+  const deleteMutation = useMutation({
+    mutationFn: (docId: number) => deleteDocument(docId),
+    onSuccess: () => {
+      console.log('✅ Document deleted');
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      setDeletingDoc(null);
+    },
+    onError: (error: any) => {
+      console.error('❌ Delete failed:', error);
+      alert('Failed to delete document: ' + (error.response?.data?.detail || error.message));
+    },
+  });
+
+  // Handle opening edit modal
+  const handleEditClick = (doc: DocumentPublic) => {
+    setEditingDoc(doc);
+    setEditDocType(doc.doc_type);
+  };
+
+  // Handle save edit
+  const handleSaveEdit = () => {
+    if (editingDoc && editDocType !== editingDoc.doc_type) {
+      updateTypeMutation.mutate({ docId: editingDoc.id, doc_type: editDocType });
+    } else {
+      setEditingDoc(null);
+    }
+  };
+
+  // Handle delete
+  const handleConfirmDelete = () => {
+    if (deletingDoc) {
+      deleteMutation.mutate(deletingDoc.id);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -208,14 +294,17 @@ export function Documents() {
 
       {/* Upload Area */}
       <div className="flex flex-col p-4">
-        <div className="flex flex-col items-center gap-6 rounded-lg border-2 border-dashed border-[#dedfe3] px-6 py-14">
+        <div className={`flex flex-col items-center gap-6 rounded-lg border-2 border-dashed px-6 py-14 transition-colors ${getUploadAreaClass(activeTab)}`}>
           <div className="flex max-w-[480px] flex-col items-center gap-2">
             <p className="text-[#131416] text-lg font-bold leading-tight tracking-[-0.015em] text-center">
-              {config.icon} Drag and drop files here
+              {config.icon} Upload {config.label}
             </p>
             <p className="text-[#131416] text-sm font-normal leading-normal text-center">
-              Or click to browse (PDF or TXT)
+              Drag and drop files here or click to browse (PDF or TXT)
             </p>
+            <div className={`mt-2 px-4 py-2 rounded-full text-sm font-medium ${getDocTypeBadgeClass(activeTab)}`}>
+              📁 Document will be uploaded as: <strong>{config.label}</strong>
+            </div>
           </div>
           <div>
             <input
@@ -233,7 +322,7 @@ export function Documents() {
               onClick={triggerFileUpload}
               type="button"
             >
-              {uploadMutation.isPending ? 'Uploading...' : 'Choose File'}
+              {uploadMutation.isPending ? 'Uploading...' : `Upload ${config.label.replace('s', '')}`}
             </Button>
           </div>
         </div>
@@ -273,19 +362,19 @@ export function Documents() {
           <table className="flex-1">
             <thead>
               <tr className="bg-white">
-                <th className="px-4 py-3 text-left text-[#131416] w-[300px] text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[280px] text-sm font-medium leading-normal">
                   File
                 </th>
-                <th className="px-4 py-3 text-left text-[#131416] w-[120px] text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[100px] text-sm font-medium leading-normal">
                   Version
                 </th>
-                <th className="px-4 py-3 text-left text-[#131416] w-[200px] text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[180px] text-sm font-medium leading-normal">
                   Uploaded
                 </th>
                 <th className="px-4 py-3 text-left text-[#131416] w-[100px] text-sm font-medium leading-normal">
                   Status
                 </th>
-                <th className="px-4 py-3 text-left text-[#131416] w-[200px] text-sm font-medium leading-normal">
+                <th className="px-4 py-3 text-left text-[#131416] w-[240px] text-sm font-medium leading-normal">
                   Actions
                 </th>
               </tr>
@@ -337,13 +426,30 @@ export function Documents() {
                         <StatusPill status={doc.status} />
                       </td>
                       <td className="h-[72px] px-4 py-2">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <Button
                             variant="secondary"
                             size="sm"
                             onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
                           >
-                            {expandedDocId === doc.id ? "Hide Versions" : "View All"}
+                            {expandedDocId === doc.id ? "Hide" : "Versions"}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleEditClick(doc)}
+                            title="Change document type"
+                          >
+                            ✏️ Edit
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setDeletingDoc(doc)}
+                            className="text-red-600 hover:bg-red-50"
+                            title="Delete document"
+                          >
+                            🗑️
                           </Button>
                           {doc.status === "processed" && (doc.is_latest !== false) && (
                             <>
@@ -364,7 +470,7 @@ export function Documents() {
                                 }}
                                 isLoading={uploadingVersionFor === doc.id}
                               >
-                                {uploadingVersionFor === doc.id ? 'Uploading...' : 'New Version'}
+                                {uploadingVersionFor === doc.id ? '...' : '+Ver'}
                               </Button>
                             </>
                           )}
@@ -415,6 +521,147 @@ export function Documents() {
           </table>
         </div>
       </div>
+
+      {/* Edit Document Type Modal */}
+      {editingDoc && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white px-6 py-4">
+              <h3 className="text-lg font-semibold">Edit Document Type</h3>
+              <p className="text-sm text-white/70 mt-1">Change the category of this document</p>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="block text-sm font-medium text-gray-700 mb-1">Document</p>
+                <p className="text-gray-900 font-medium truncate">{editingDoc.filename}</p>
+              </div>
+              
+              <div className="mb-4">
+                <p className="block text-sm font-medium text-gray-700 mb-1">Current Type</p>
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${getDocTypeBadgeClass(editingDoc.doc_type)}`}>
+                  {DOC_TYPE_CONFIG[editingDoc.doc_type]?.icon} {DOC_TYPE_CONFIG[editingDoc.doc_type]?.label}
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <label htmlFor="edit-doc-type" className="block text-sm font-medium text-gray-700 mb-2">New Type</label>
+                <select
+                  id="edit-doc-type"
+                  value={editDocType}
+                  onChange={(e) => setEditDocType(e.target.value as DocumentType)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                >
+                  {DOCUMENT_ENDPOINT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {DOC_TYPE_CONFIG[type].icon} {DOC_TYPE_CONFIG[type].label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  {DOC_TYPE_CONFIG[editDocType]?.description}
+                </p>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setEditingDoc(null)}
+                disabled={updateTypeMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                isLoading={updateTypeMutation.isPending}
+                disabled={editDocType === editingDoc.doc_type}
+              >
+                {updateTypeMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingDoc && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <span className="text-xl">⚠️</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Delete Document</h3>
+                  <p className="text-sm text-white/80">This action cannot be undone</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to permanently delete this document?
+              </p>
+              
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">📄</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{deletingDoc.filename}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-xs px-2 py-0.5 rounded ${getDocTypeBadgeClass(deletingDoc.doc_type)}`}>
+                        {DOC_TYPE_CONFIG[deletingDoc.doc_type]?.label}
+                      </span>
+                      {deletingDoc.version_number && (
+                        <span className="text-xs text-gray-500">v{deletingDoc.version_number}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <p className="text-sm text-gray-500 mt-4">
+                💡 This will also remove the document from search index and storage.
+              </p>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setDeletingDoc(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {deleteMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>🗑️ Delete Document</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

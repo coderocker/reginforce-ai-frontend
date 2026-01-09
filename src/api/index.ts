@@ -82,6 +82,21 @@ export const getDocumentContent = async (documentId: number): Promise<string> =>
   return response.data.content;
 };
 
+export const updateDocumentType = async (
+  documentId: number,
+  doc_type: DocumentType
+): Promise<DocumentPublic> => {
+  const response = await apiClient.patch<DocumentPublic>(
+    `/api/documents/${documentId}`,
+    { doc_type }
+  );
+  return response.data;
+};
+
+export const deleteDocument = async (documentId: number): Promise<void> => {
+  await apiClient.delete(`/api/documents/${documentId}`);
+};
+
 // === Analysis ===
 export const runAnalysis = async (
   request: AnalysisRequest
@@ -160,6 +175,10 @@ export const getAnalysisStats = async (): Promise<AnalysisStats> => {
     console.error('Error fetching analysis stats:', error);
     throw error;
   }
+};
+
+export const deleteReport = async (reportId: number): Promise<void> => {
+  await apiClient.delete(`/api/analysis/reports/${reportId}`);
 };
 
 export const getReportTrends = async (): Promise<TrendData> => {

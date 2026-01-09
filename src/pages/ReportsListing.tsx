@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getReports, getAnalysisStats } from "../api";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { getReports, getAnalysisStats, deleteReport } from "../api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatusPill } from "../components/ui/StatusPill";
 import NewAnalysisModal from "../components/NewAnalysisModal";
+import type { ReportPublic } from "../types/api";
 
 export function ReportsListing() {
   const queryClient = useQueryClient();
@@ -34,6 +35,36 @@ export function ReportsListing() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   // New Analysis modal state
   const [showNewAnalysis, setShowNewAnalysis] = useState(false);
+  // Delete confirmation state
+  const [deleteConfirmReport, setDeleteConfirmReport] = useState<ReportPublic | null>(null);
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Toast helper
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (reportId: number) => deleteReport(reportId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['analysis-stats'] });
+      setDeleteConfirmReport(null);
+      showToast("Report deleted successfully", "success");
+    },
+    onError: (error: Error) => {
+      showToast(error.message || "Failed to delete report", "error");
+    },
+  });
+
+  const handleDeleteConfirm = () => {
+    if (deleteConfirmReport) {
+      deleteMutation.mutate(deleteConfirmReport.id);
+    }
+  };
 
   // Filter reports based on status
   const filteredReports = React.useMemo(() => {
@@ -194,14 +225,14 @@ export function ReportsListing() {
                 <div className="flex justify-center items-baseline gap-2 mb-2">
                   <div className="flex flex-col items-center">
                     <div className="text-xl font-bold text-red-600">
-                      {stats?.total_critical || reports.reduce((acc, r) => acc + (r.gaps?.filter(g => g.severity_level === 'critical').length || 0), 0)}
+                      {stats?.total_critical || reports.reduce((acc, r) => acc + (r.gaps?.filter(g => (g.severity || g.severity_level)?.toLowerCase() === 'critical').length || 0), 0)}
                     </div>
                     <div className="text-xs text-red-500 font-medium">Critical</div>
                   </div>
                   <div className="text-gray-300 text-lg">+</div>
                   <div className="flex flex-col items-center">
                     <div className="text-xl font-bold text-orange-600">
-                      {stats?.total_high || reports.reduce((acc, r) => acc + (r.gaps?.filter(g => g.severity_level === 'high').length || 0), 0)}
+                      {stats?.total_high || reports.reduce((acc, r) => acc + (r.gaps?.filter(g => (g.severity || g.severity_level)?.toLowerCase() === 'high').length || 0), 0)}
                     </div>
                     <div className="text-xs text-orange-500 font-medium">High</div>
                   </div>
@@ -347,7 +378,7 @@ export function ReportsListing() {
                         <div className="mb-4 text-center text-sm text-gray-600 border-t pt-2">
                           {report.gaps.length} total gaps identified
                         </div>
-                      )}                    {/* Actions */}
+                      )}                                          {/* Actions */}
                       <div className="flex gap-2">
                         <Link to={`/reports/${report.id}`} className="flex-1">
                           <Button variant="primary" size="sm" className="w-full">
@@ -359,6 +390,18 @@ export function ReportsListing() {
                             Remediate
                           </Button>
                         </Link>
+                        <button
+                          onClick={() => setDeleteConfirmReport(report)}
+                          disabled={report.status === 'processing'}
+                          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                            report.status === 'processing'
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                          }`}
+                          title={report.status === 'processing' ? 'Cannot delete while processing' : 'Delete report'}
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </div>
                   </Card>
@@ -377,6 +420,84 @@ export function ReportsListing() {
           queryClient.invalidateQueries({ queryKey: ['analysis-stats', 'reports-listing'] });
         }}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmReport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <span className="text-red-600 text-xl">⚠️</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Delete Analysis Report
+                </h3>
+              </div>
+            </div>
+
+            <div className="px-6 py-4">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to delete <strong>Report #{deleteConfirmReport.id}</strong>?
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-800">
+                  <strong>⚠️ Warning:</strong> This will also delete all associated compliance gaps 
+                  and cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+              <Button
+                variant="secondary"
+                onClick={() => setDeleteConfirmReport(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleteMutation.isPending}
+                className={`px-4 py-2 rounded-lg font-medium text-white transition-colors ${
+                  deleteMutation.isPending
+                    ? 'bg-red-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {deleteMutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                    Deleting...
+                  </span>
+                ) : (
+                  'Delete Report'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 transition-all ${
+            toast.type === "success"
+              ? "bg-green-600 text-white"
+              : "bg-red-600 text-white"
+          }`}
+        >
+          <span>{toast.type === "success" ? "✅" : "❌"}</span>
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 hover:opacity-80"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -40,10 +40,19 @@ interface StoredConversation {
   messageCount: number;
 }
 
+// Quick action suggestions
+const QUICK_ACTIONS = [
+  { label: "Summarize this document", icon: "📋" },
+  { label: "What are the key requirements?", icon: "📌" },
+  { label: "List compliance gaps", icon: "⚠️" },
+  { label: "Explain the main risks", icon: "🔍" },
+];
+
 export function ComplianceAssistant({
   isOpen,
   documentId,
-  documentName = "GDPR Policy v2",
+  documentName = "General Chat",
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   documentThumbnail,
 }: ComplianceAssistantProps) {
   const { authState } = useAuth();
@@ -64,10 +73,6 @@ export function ComplianceAssistant({
   const activePollingConversationRef = useRef<number | null>(null);
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Better avatars using emoji
-  const AI_AVATAR = "🤖";
-  const USER_AVATAR = "👤";
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -83,7 +88,6 @@ export function ComplianceAssistant({
       const history: StoredConversation[] = [];
       
       Object.entries(stored).forEach(([key, data]) => {
-        // Match conversations using the new key format: conv_{id}_{docId|general}
         const isCurrentDocConv = documentId && key.includes(`_${documentId}`);
         const isGeneralConv = !documentId && key.includes('_general');
         
@@ -110,23 +114,11 @@ export function ComplianceAssistant({
   // Restore conversation from localStorage on mount
   useEffect(() => {
     const initializeConversation = async () => {
-      console.log("Initializing conversation:", { isOpen, documentId, isNewChatMode });
+      if (!isOpen) return;
+      if (isNewChatMode) return;
       
-      if (!isOpen) {
-        console.log("Chat not open, skipping initialization");
-        return;
-      }
-      
-      // If in new chat mode, don't restore - handleNewChat will handle creation
-      if (isNewChatMode) {
-        console.log("New chat mode - skipping auto initialization");
-        return;
-      }
-      
-      // Use documentId if available, otherwise use "general" conversation
       const stored = getStoredConversations();
       
-      // Find the most recent conversation for this document
       const conversationEntries = Object.entries(stored)
         .filter(([key]) => {
           const isCurrentDocConv = documentId && key.includes(`_${documentId}`);
@@ -141,8 +133,6 @@ export function ComplianceAssistant({
 
       if (conversationEntries.length > 0) {
         const [conversationKey, mostRecentConversation] = conversationEntries[0];
-        // Restore saved conversation
-        console.log("Restoring saved conversation:", mostRecentConversation.id);
         lastMessageIdsRef.current.clear();
         mostRecentConversation.messages.forEach((m: MessagePublic) => lastMessageIdsRef.current.add(m.id));
         setMessages(mostRecentConversation.messages);
@@ -159,9 +149,6 @@ export function ComplianceAssistant({
           message_count: mostRecentConversation.messages.length,
         });
       } else {
-        // No existing conversation - don't create one yet
-        // Will be created lazily when user sends first message
-        console.log("No existing conversation found - will create on first message");
         setActiveConversation(null);
         setMessages([]);
         setCurrentConversationKey(null);
@@ -215,16 +202,8 @@ export function ComplianceAssistant({
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Send button clicked", { 
-      inputMessage: inputMessage.trim(), 
-      activeConversation: activeConversation?.id,
-      hasConversation: !!activeConversation 
-    });
     
-    if (!inputMessage.trim()) {
-      console.warn("Empty message");
-      return;
-    }
+    if (!inputMessage.trim()) return;
 
     const userMessage = inputMessage;
     setInputMessage("");
@@ -235,21 +214,16 @@ export function ComplianceAssistant({
     try {
       let conversationToUse = activeConversation;
       
-      // Create conversation in backend if not yet created (lazy creation)
       if (!conversationToUse) {
-        console.log("Creating conversation on first message...");
         const newConversation = await chatService.createConversation({
           title: `${documentName || "Compliance Review"} - ${new Date().toLocaleDateString()}`,
         });
-        console.log("Conversation created:", newConversation.id);
         
-        // Set the conversation key for saving
         const conversationKey = `conv_${newConversation.id}_${documentId || 'general'}`;
         setCurrentConversationKey(conversationKey);
         setActiveConversation(newConversation);
         conversationToUse = newConversation;
         
-        // Save to localStorage
         const stored = getStoredConversations();
         stored[conversationKey] = {
           id: newConversation.id,
@@ -258,7 +232,6 @@ export function ComplianceAssistant({
         };
         saveConversations(stored);
         
-        // Update conversation history
         setConversationHistory(prev => [{
           key: conversationKey,
           id: newConversation.id,
@@ -267,94 +240,70 @@ export function ComplianceAssistant({
           messageCount: 0,
         }, ...prev]);
         
-        // Add document context if documentId is available
         if (documentId) {
           try {
             await chatService.addConversationContext(newConversation.id, {
               document_id: documentId,
               context_type: "REGULATION",
             });
-            console.log("Document context added");
           } catch (error) {
             console.warn("Failed to add document context:", error);
           }
         }
       }
 
-      // Send user message
-      console.log("Sending message:", { conversationId: conversationToUse.id, content: userMessage });
       const sentMessage = await chatService.sendMessage(
         conversationToUse.id,
         { content: userMessage, role: "user" }
       );
 
-      console.log("Message sent successfully:", sentMessage);
-
-      // Add user message to UI and track its ID
       setMessages((prev) => [...prev, sentMessage]);
       lastMessageIdsRef.current.add(sentMessage.id);
 
-      // Start polling for AI response with thinking indicator
       setIsThinking(true);
       pollForAIResponse(conversationToUse.id);
     } catch (error) {
       console.error("Failed to send message:", error);
-      alert("Failed to send message. Check browser console for details.");
+      alert("Failed to send message. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickAction = (action: string) => {
+    setInputMessage(action);
   };
 
   const pollForAIResponse = (conversationId: number) => {
     let retries = 0;
     const maxRetries = 20;
     
-    // Set this as the active polling conversation
     activePollingConversationRef.current = conversationId;
 
     const attemptFetch = async () => {
-      // Check if this polling session is still active
-      if (activePollingConversationRef.current !== conversationId) {
-        console.log("Polling cancelled: conversation ID mismatch");
-        return;
-      }
+      if (activePollingConversationRef.current !== conversationId) return;
 
       try {
-        console.log("Polling for AI response (attempt", retries + 1, "/", maxRetries, ")");
-        const updatedMessages = await chatService.getMessages(
-          conversationId,
-          100
-        );
-        console.log("Fetched messages:", updatedMessages);
+        const updatedMessages = await chatService.getMessages(conversationId, 100);
 
-        // Double-check we're still polling for this conversation
-        if (activePollingConversationRef.current !== conversationId) {
-          console.log("Polling cancelled: conversation switched");
-          return;
-        }
+        if (activePollingConversationRef.current !== conversationId) return;
 
-        // Update messages with new responses - filter by comparing with previously seen IDs
         const newMessages = updatedMessages.filter(
           (msg) => !lastMessageIdsRef.current.has(msg.id)
         );
         
         if (newMessages.length > 0) {
-          console.log("Found new messages:", newMessages.length);
-          // Add new message IDs to our tracking set
           newMessages.forEach(msg => lastMessageIdsRef.current.add(msg.id));
-          // Update state with only new messages
           setMessages((prev) => [...prev, ...newMessages]);
           setIsThinking(false);
           return;
         }
         
-        // Continue polling
         if (retries < maxRetries) {
           retries++;
           const timeoutId = setTimeout(attemptFetch, 1000);
           pollingTimeoutRef.current = timeoutId;
         } else {
-          console.warn("Polling timeout: AI response not received after 20 seconds");
           setIsThinking(false);
           activePollingConversationRef.current = null;
         }
@@ -371,7 +320,6 @@ export function ComplianceAssistant({
       }
     };
 
-    // Wait 1-2 seconds before first poll
     const timeoutId = setTimeout(attemptFetch, 1500);
     pollingTimeoutRef.current = timeoutId;
   };
@@ -379,15 +327,12 @@ export function ComplianceAssistant({
   if (!isOpen) return null;
 
   const handleNewChat = () => {
-    // Cancel any active polling
     if (pollingTimeoutRef.current) {
       clearTimeout(pollingTimeoutRef.current);
       pollingTimeoutRef.current = null;
     }
     activePollingConversationRef.current = null;
     
-    // Immediately clear everything for new chat
-    // Don't create backend conversation yet - will be created on first message
     setMessages([]);
     setIsThinking(false);
     lastMessageIdsRef.current.clear();
@@ -402,25 +347,20 @@ export function ComplianceAssistant({
     const conversation = stored[convKey];
     
     if (conversation) {
-      // Stop any ongoing polling by resetting thinking state
       setIsThinking(false);
       
-      // Cancel any active polling
       if (pollingTimeoutRef.current) {
         clearTimeout(pollingTimeoutRef.current);
         pollingTimeoutRef.current = null;
       }
       activePollingConversationRef.current = null;
       
-      // Clear messages first and set new ones
       const uniqueMessages = conversation.messages;
       setMessages([...uniqueMessages]);
       
-      // Update message ID tracking ref
       lastMessageIdsRef.current.clear();
       uniqueMessages.forEach(msg => lastMessageIdsRef.current.add(msg.id));
       
-      // Set the current conversation key so save effect uses it
       setCurrentConversationKey(convKey);
       
       setActiveConversation({
@@ -439,202 +379,244 @@ export function ComplianceAssistant({
     }
   };
 
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
   return (
-    // Right sidebar layout
-    <div className="w-[360px] bg-white border-l border-[#dedfe3] flex flex-col h-screen">
+    <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col h-screen shadow-xl">
       {/* Header */}
-      <div className="px-4 pb-3 pt-5">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-[#131416] text-[22px] font-bold leading-tight tracking-[-0.015em]">
-            Compliance Assistant
-          </h2>
-          <div className="flex gap-2">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-semibold">Compliance Assistant</h2>
+              <p className="text-xs text-white/70 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                Online
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             {conversationHistory.length > 0 && (
               <button
                 onClick={() => setShowConversationList(!showConversationList)}
-                className="px-3 py-1 text-xs font-medium text-[#525252] bg-[#f4f4f4] rounded hover:bg-[#e8e8e8] transition-colors"
-                title="View conversation history"
+                className={`p-2 rounded-lg transition-colors ${
+                  showConversationList ? 'bg-white/20' : 'hover:bg-white/10'
+                }`}
+                title="Chat history"
               >
-                📋 {conversationHistory.length}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
               </button>
             )}
             <button
               onClick={handleNewChat}
-              className="px-3 py-1 text-xs font-medium text-[#0f62fe] bg-[#f4f4f4] rounded hover:bg-[#e8e8e8] transition-colors"
-              title="Start a new conversation"
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              title="New conversation"
             >
-              ➕ New
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
             </button>
           </div>
         </div>
-        <p className="text-[#6b7180] text-sm font-normal leading-normal pb-3 pt-1">
-          Analyzing: {documentName}
-        </p>
         
-        {/* Conversation History List */}
-        {showConversationList && conversationHistory.length > 0 && (
-          <div className="border-t border-[#dedfe3] pt-2 mt-2">
-            <p className="text-[#6b7180] text-xs font-medium mb-2 px-0">Previous Conversations:</p>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {conversationHistory.map((conv) => (
-                <button
-                  key={conv.key}
-                  onClick={() => handleLoadConversation(conv.key)}
-                  className="w-full text-left px-2 py-2 text-xs rounded hover:bg-[#f0f0f0] transition-colors border border-[#e8e8e8]"
-                >
-                  <div className="font-medium text-[#131416] truncate">{conv.title}</div>
-                  <div className="text-[#6b7180] text-xs">{conv.messageCount} messages</div>
-                </button>
-              ))}
-            </div>
+        {/* Context indicator */}
+        {documentName && documentName !== "General Chat" && (
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-white/10 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span className="text-xs text-white/90 truncate">{documentName}</span>
           </div>
         )}
       </div>
 
+      {/* Conversation History Dropdown */}
+      {showConversationList && conversationHistory.length > 0 && (
+        <div className="border-b border-gray-200 bg-gray-50 p-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Recent Conversations
+          </p>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {conversationHistory.map((conv) => (
+              <button
+                key={conv.key}
+                onClick={() => handleLoadConversation(conv.key)}
+                className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-white transition-colors border border-transparent hover:border-gray-200 hover:shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-800">{conv.title}</span>
+                  <span className="text-xs text-gray-400">{conv.messageCount} msgs</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto space-y-0">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full p-4">
-            <p className="text-[#6b7180] text-sm text-center">
-              Start the conversation by asking about this policy
+      <div className="flex-1 overflow-y-auto bg-gray-50">
+        {messages.length === 0 && !isThinking ? (
+          <div className="h-full flex flex-col items-center justify-center p-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">How can I help?</h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Ask me anything about compliance, policies, or regulations.
             </p>
+            
+            {/* Quick Actions */}
+            <div className="w-full space-y-2">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-1">
+                Quick Actions
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {QUICK_ACTIONS.map((action, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleQuickAction(action.label)}
+                    className="flex items-center gap-2 px-3 py-2.5 text-left text-sm bg-white rounded-lg border border-gray-200 hover:border-slate-300 hover:shadow-sm transition-all group"
+                  >
+                    <span className="text-base">{action.icon}</span>
+                    <span className="text-gray-600 group-hover:text-gray-800 line-clamp-1">
+                      {action.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
-          <>
+          <div className="p-4 space-y-4">
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex items-end gap-3 p-4 ${
-                  message.role === "user" ? "justify-end" : "justify-start"
+                className={`flex gap-3 ${
+                  message.role === "user" ? "flex-row-reverse" : ""
                 }`}
               >
-                {message.role === "assistant" && (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xl text-white font-bold shrink-0">
-                    {AI_AVATAR}
-                  </div>
-                )}
-
+                {/* Avatar */}
                 <div
-                  className={`flex flex-col ${
-                    message.role === "user" ? "items-end" : "items-start"
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    message.role === "assistant"
+                      ? "bg-gradient-to-br from-slate-700 to-slate-900 text-white"
+                      : "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
                   }`}
                 >
-                  <p className="text-[#6b7180] text-[13px] font-normal leading-normal mb-1">
-                    {message.role === "assistant" ? "AI Assistant" : "You"}
-                  </p>
+                  {message.role === "assistant" ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 8V4H8"></path>
+                      <rect x="8" y="8" width="8" height="8" rx="1"></rect>
+                      <path d="M4 12H2"></path>
+                      <path d="M22 12h-2"></path>
+                      <path d="M12 2v2"></path>
+                      <path d="M12 22v-2"></path>
+                      <path d="M20 20l-1.5-1.5"></path>
+                      <path d="M4 4l1.5 1.5"></path>
+                      <path d="M20 4l-1.5 1.5"></path>
+                      <path d="M4 20l1.5-1.5"></path>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  )}
+                </div>
+
+                {/* Message Content */}
+                <div className={`flex flex-col max-w-[280px] ${message.role === "user" ? "items-end" : "items-start"}`}>
                   <div
-                    className={`flex flex-col max-w-[300px] rounded-lg px-4 py-3 ${
+                    className={`rounded-2xl px-4 py-2.5 ${
                       message.role === "user"
-                        ? "bg-[#0f1729] text-white"
-                        : "bg-[#f1f2f3] text-[#131416]"
+                        ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-md"
+                        : "bg-white text-gray-800 shadow-sm border border-gray-100 rounded-tl-md"
                     }`}
                   >
                     {message.role === "assistant" ? (
                       <MarkdownRenderer content={message.content} />
                     ) : (
-                      <p className="text-base font-normal leading-normal whitespace-pre-wrap">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
                         {message.content}
                       </p>
                     )}
                   </div>
-                  {message.referenced_documents &&
-                    message.referenced_documents.length > 0 && (
-                      <div className="mt-2 pt-2 space-y-1">
-                        <p className="text-xs font-semibold opacity-70 px-4">
-                          References:
-                        </p>
-                        {message.referenced_documents.map((docId) => (
-                          <button
-                            key={docId}
-                            type="button"
-                            onClick={() => console.log(`Viewing document ${docId}`)}
-                            className="block text-xs hover:underline opacity-80 px-4 bg-none border-none cursor-pointer"
-                          >
-                            📄 Document {docId}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <span className={`text-[10px] mt-1 px-1 ${
+                    message.role === "user" ? "text-gray-400" : "text-gray-400"
+                  }`}>
+                    {message.created_at ? formatTime(message.created_at) : ''}
+                  </span>
                 </div>
-
-                {message.role === "user" && (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 flex items-center justify-center text-xl font-bold shrink-0">
-                    {USER_AVATAR}
-                  </div>
-                )}
               </div>
             ))}
 
             {/* Thinking Indicator */}
             {isThinking && (
-              <div className="flex items-end gap-3 p-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xl text-white font-bold shrink-0">
-                  {AI_AVATAR}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 8V4H8"></path>
+                    <rect x="8" y="8" width="8" height="8" rx="1"></rect>
+                  </svg>
                 </div>
-                <div className="flex flex-col items-start">
-                  <p className="text-[#6b7180] text-[13px] font-normal leading-normal mb-1">
-                    AI Assistant
-                  </p>
-                  <div className="bg-[#f1f2f3] text-[#131416] rounded-lg px-4 py-3 flex items-center gap-2">
+                <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2">
                     <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0s" }}></span>
-                      <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></span>
-                      <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></span>
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0s" }}></span>
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></span>
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></span>
                     </div>
-                    <span className="text-sm text-gray-600 ml-1">Thinking...</span>
+                    <span className="text-xs text-gray-500 ml-1">Analyzing...</span>
                   </div>
                 </div>
               </div>
             )}
 
             <div ref={messagesEndRef} />
-          </>
+          </div>
         )}
       </div>
 
-      {/* Document Context Card */}
-      {documentId && (
-        <div className="p-4 border-t border-[#dedfe3]">
-          <div className="flex items-stretch justify-between gap-4 rounded-lg border border-[#dedfe3] p-4">
-            <div className="flex flex-col gap-4 flex-[2_2_0px]">
-              <div className="flex flex-col gap-1">
-                <p className="text-[#131416] text-base font-bold leading-tight">
-                  {documentName}
-                </p>
-                <p className="text-[#6b7180] text-sm font-normal leading-normal">
-                  View the full policy document
-                </p>
-              </div>
-              <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#f1f2f3] text-[#131416] text-sm font-medium leading-normal w-fit hover:bg-[#e0e0e0] transition">
-                <span className="truncate">View</span>
-              </button>
-            </div>
-            {documentThumbnail && (
-              <div
-                className="w-full bg-center bg-no-repeat aspect-video bg-cover rounded-lg flex-1"
-                style={{ backgroundImage: `url("${documentThumbnail}")` }}
-              />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Input Area with Document Upload */}
-      <div className="border-t border-[#dedfe3] p-4">
+      {/* Input Area */}
+      <div className="border-t border-gray-200 bg-white p-4">
         {fileUpload && (
-          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-            <span className="text-xs text-blue-900 flex items-center gap-2">
-              📎 {fileUpload.name.substring(0, 20)}...
-            </span>
+          <div className="mb-3 p-2.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-blue-700">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+              <span className="truncate max-w-[200px]">{fileUpload.name}</span>
+            </div>
             <button
               onClick={() => setFileUpload(null)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              className="p-1 hover:bg-blue-100 rounded transition-colors"
             >
-              ✕
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
           </div>
         )}
-        <form onSubmit={handleSendMessage} className="flex items-stretch gap-3">
+        
+        <form onSubmit={handleSendMessage} className="flex items-end gap-2">
           <input
             type="file"
             ref={fileInputRef}
@@ -643,31 +625,52 @@ export function ComplianceAssistant({
             className="hidden"
             aria-label="Upload document"
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
-            className="flex items-center justify-center px-3 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition disabled:opacity-50"
-            title="Upload document for context"
-          >
-            📎
-          </button>
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            disabled={loading}
-            placeholder="Ask about this policy..."
-            className="flex-1 px-4 py-3 bg-[#f1f2f3] border-none rounded-lg text-[#131416] placeholder-[#6b7180] focus:outline-none focus:ring-2 focus:ring-[#0f1729] disabled:opacity-50 text-sm"
-          />
+          
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              disabled={loading}
+              placeholder="Type your message..."
+              className="w-full px-4 py-3 pr-12 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300 disabled:opacity-50 transition-all"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+              title="Attach file"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+            </button>
+          </div>
+          
           <button
             type="submit"
             disabled={loading || !inputMessage.trim()}
-            className="flex items-center justify-center px-4 py-3 bg-[#0f1729] hover:bg-[#1a2341] text-white text-sm font-medium leading-normal rounded-lg transition disabled:opacity-50"
+            className="p-3 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow"
           >
-            {loading ? "..." : "Send"}
+            {loading ? (
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            )}
           </button>
         </form>
+        
+        {/* Powered by text */}
+        <p className="text-center text-[10px] text-gray-400 mt-3">
+          Powered by AI • Responses may require verification
+        </p>
       </div>
     </div>
   );

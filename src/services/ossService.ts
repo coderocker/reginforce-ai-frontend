@@ -11,6 +11,7 @@ import type {
   Sbom,
   SbomList,
   SbomIngestionResult,
+  SbomDeleteResult,
   SbomComponent,
   SbomComponentList,
   ComponentFilter,
@@ -18,6 +19,8 @@ import type {
   ComponentBulkReviewRequest,
   ComponentBulkReviewResult,
   ComplianceStatistics,
+  LinkingTypeOverrideRequest,
+  LinkingTypeReviewResponse,
 } from "../types/oss";
 
 class OSSService {
@@ -109,6 +112,16 @@ class OSSService {
     return response.data;
   }
 
+  /**
+   * Delete an SBOM and all its components
+   * DELETE /api/oss/sboms/{id}
+   * Also removes components from RAG index
+   */
+  async deleteSbom(id: number): Promise<SbomDeleteResult> {
+    const response = await apiClient.delete<SbomDeleteResult>(`/api/oss/sboms/${id}`);
+    return response.data;
+  }
+
   // =====================
   // Components
   // =====================
@@ -165,6 +178,36 @@ class OSSService {
   async bulkReviewComponents(data: ComponentBulkReviewRequest): Promise<ComponentBulkReviewResult> {
     const response = await apiClient.post<ComponentBulkReviewResult>(
       "/api/oss/components/bulk-review",
+      data
+    );
+    return response.data;
+  }
+
+  // =====================
+  // Linking Type Review
+  // =====================
+
+  /**
+   * Confirm the computed linking type is correct
+   * POST /api/oss/components/{id}/linking-type/confirm
+   */
+  async confirmLinkingType(componentId: number): Promise<LinkingTypeReviewResponse> {
+    const response = await apiClient.post<LinkingTypeReviewResponse>(
+      `/api/oss/components/${componentId}/linking-type/confirm`
+    );
+    return response.data;
+  }
+
+  /**
+   * Override the computed linking type with a user-specified value
+   * POST /api/oss/components/{id}/linking-type/override
+   */
+  async overrideLinkingType(
+    componentId: number,
+    data: LinkingTypeOverrideRequest
+  ): Promise<LinkingTypeReviewResponse> {
+    const response = await apiClient.post<LinkingTypeReviewResponse>(
+      `/api/oss/components/${componentId}/linking-type/override`,
       data
     );
     return response.data;

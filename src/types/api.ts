@@ -45,13 +45,23 @@ export interface AnalysisRequest {
 
 export interface GapPublic {
   id: number;
-  policy_section: string;
-  regulation_section?: string | null;
-  gap_description: string;
-  risk_score: number;
+  organization_id?: string;
+  analysis_report_id?: number;
   gap_type?: string | null;
-  severity_level?: "low" | "medium" | "high" | "critical" | null;
+  title?: string | null;
+  description?: string | null;
+  // Backend uses "severity", not "severity_level"
+  severity?: "low" | "medium" | "high" | "critical" | "info" | null;
   status?: GapStatus | null;
+  regulation_section?: string | null;
+  policy_section?: string | null;
+  regulation_text?: string | null;
+  policy_text?: string | null;
+  recommendation?: string | null;
+  risk_score?: number | null;
+  // Legacy field names for backwards compatibility
+  gap_description?: string | null;
+  severity_level?: "low" | "medium" | "high" | "critical" | null;
 }
 
 export interface ClusterSummary {
