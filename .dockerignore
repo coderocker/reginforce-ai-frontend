@@ -165,10 +165,6 @@ storybook-static/
 .prettierrc*
 .editorconfig
 .browserslistrc
-tsconfig*.json
-vite.config.*
 rollup.config.*
 webpack.config.*
 babel.config.*
-postcss.config.*
-tailwind.config.*

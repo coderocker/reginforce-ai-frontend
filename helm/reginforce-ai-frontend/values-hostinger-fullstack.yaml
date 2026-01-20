@@ -1,0 +1,232 @@
+# RegInforce AI Frontend - Full Stack Configuration for Hostinger KVM 2
+# Optimized to run alongside Backend, PostgreSQL, and Redis
+
+# Reduced replicas for full stack deployment
+replicaCount: 2
+
+image:
+  repository: ghcr.io/coderocker/reginforce-ai-frontend
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels:
+  tier: "frontend"
+  component: "ui"
+
+# Security context
+podSecurityContext:
+  fsGroup: 1001
+  runAsNonRoot: true
+  runAsUser: 1001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Traefik ingress for frontend
+ingress:
+  enabled: true
+  className: "traefik"
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Enable compression for better performance
+    traefik.ingress.kubernetes.io/router.middlewares: default-compress@kubernetescrd
+    # Security headers middleware
+    traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
+  hosts:
+    - host: reginforce.example.com  # Replace with your domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: reginforce-frontend-tls
+      hosts:
+        - reginforce.example.com
+
+# Reduced resources for full stack deployment
+resources:
+  limits:
+    cpu: 200m        # Reduced from 400m for full stack
+    memory: 256Mi    # Reduced from 384Mi for full stack
+  requests:
+    cpu: 50m         # Conservative request
+    memory: 64Mi     # Conservative request
+
+# Optimized health checks for full stack
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Reduced autoscaling for full stack
+autoscaling:
+  enabled: true
+  minReplicas: 1      # Start with 1 for resource conservation
+  maxReplicas: 3      # Max 3 for full stack scenario
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Volumes for non-root user
+volumes:
+  - name: tmp
+    emptyDir:
+      sizeLimit: 50Mi   # Reduced for full stack
+  - name: cache
+    emptyDir:
+      sizeLimit: 100Mi  # Reduced for full stack
+
+volumeMount:
+  - name: tmp
+    mountPath: /tmp
+  - name: cache
+    mountPath: /var/cache/nginx
+
+# Node selection and affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}  # Single node setup
+
+# Environment variables pointing to backend services
+env:
+  - name: NODE_ENV
+    value: "production"
+  - name: VITE_API_BASE_URL
+    value: "https://api.reginforce.example.com"  # Backend API endpoint
+  - name: REACT_APP_WS_URL
+    value: "wss://api.reginforce.example.com/ws"  # WebSocket endpoint if used
+  - name: REACT_APP_VERSION
+    value: "1.0.0"
+  - name: NGINX_WORKER_PROCESSES
+    value: "1"          # Reduced for full stack
+  - name: NGINX_WORKER_CONNECTIONS
+    value: "512"        # Reduced for full stack
+
+# ConfigMap for nginx optimizations
+configMap:
+  enabled: true
+  data:
+    nginx-fullstack.conf: |
+      # Nginx config optimized for full stack deployment
+      worker_processes 1;
+      worker_connections 512;
+      
+      events {
+          worker_connections 512;
+          use epoll;
+          multi_accept on;
+      }
+      
+      http {
+          sendfile on;
+          tcp_nopush on;
+          tcp_nodelay on;
+          keepalive_timeout 30;
+          keepalive_requests 100;
+          
+          # Reduced buffer sizes for full stack
+          client_body_buffer_size 64k;
+          client_header_buffer_size 8k;
+          client_max_body_size 5m;
+          
+          # Gzip compression
+          gzip on;
+          gzip_vary on;
+          gzip_min_length 1024;
+          gzip_comp_level 4;  # Reduced compression for CPU savings
+          gzip_types
+              application/javascript
+              application/json
+              text/css
+              text/javascript
+              text/plain;
+      }
+
+# Network policy for frontend
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from Traefik
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow access to backend API
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: backend
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow HTTPS for external services
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Pod labels for full stack identification
+podLabels:
+  tier: "frontend"
+  component: "ui"
+  stack: "fullstack-hostinger"
+  
+# Pod annotations for monitoring
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/health"

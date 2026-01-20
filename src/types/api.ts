@@ -1,9 +1,9 @@
-// Type definitions for RegInforce AI API
+// Type definitions for Comply Lens API
 
 // Enums
 export type ProcessingStatus = "pending" | "processing" | "processed" | "error";
 export type GapStatus = "new" | "existing" | "resolved" | "worsened";
-export type DocumentType = "regulation" | "policy";
+export type DocumentType = "regulation" | "policy" | "oss_license" | "oss_policy" | "copyright_statute";
 export type RemediationStatus = "draft" | "in_progress" | "completed" | "blocked";
 export type EffortSize = "S" | "M" | "L" | "XL";
 export type MessageRole = "user" | "assistant" | "system";
@@ -16,6 +16,26 @@ export interface DocumentPublic {
   doc_type: DocumentType;
   status: ProcessingStatus;
   created_at: string;
+  version_number?: number;
+  is_latest?: boolean;
+  parent_document_id?: number | null;
+}
+
+export interface DocumentVersion {
+  id: number;
+  filename: string;
+  version_number: number;
+  is_latest: boolean;
+  status: ProcessingStatus;
+  created_at: string;
+  analysis_count?: number;
+}
+
+export interface DocumentVersionsResponse {
+  document_family_id: number;
+  total_versions: number;
+  current_version: number;
+  versions: DocumentVersion[];
 }
 
 export interface AnalysisRequest {
@@ -25,13 +45,23 @@ export interface AnalysisRequest {
 
 export interface GapPublic {
   id: number;
-  policy_section: string;
-  regulation_section?: string | null;
-  gap_description: string;
-  risk_score: number;
+  organization_id?: string;
+  analysis_report_id?: number;
   gap_type?: string | null;
-  severity_level?: "low" | "medium" | "high" | "critical" | null;
+  title?: string | null;
+  description?: string | null;
+  // Backend uses "severity", not "severity_level"
+  severity?: "low" | "medium" | "high" | "critical" | "info" | null;
   status?: GapStatus | null;
+  regulation_section?: string | null;
+  policy_section?: string | null;
+  regulation_text?: string | null;
+  policy_text?: string | null;
+  recommendation?: string | null;
+  risk_score?: number | null;
+  // Legacy field names for backwards compatibility
+  gap_description?: string | null;
+  severity_level?: "low" | "medium" | "high" | "critical" | null;
 }
 
 export interface ClusterSummary {
@@ -43,10 +73,19 @@ export interface ClusterSummary {
 
 export interface ReportPublic {
   id: number;
+  organization_id?: string;
   regulation_doc_id: number;
   policy_doc_id: number;
+  analysis_type?: string;
   status: ProcessingStatus;
+  overall_compliance_score: number | null;
+  summary: string | null;
+  recommendations: string | null;
+  ai_model_used: string | null;
+  processing_time_seconds: number | null;
   created_at: string;
+  updated_at?: string;
+  created_by?: string;
   gaps: GapPublic[];
   cluster_summaries?: Record<string, ClusterSummary> | null;
   total_critical?: number | null;
@@ -93,6 +132,23 @@ export interface TrendData {
   summary: string;
 }
 
+export interface AnalysisStats {
+  total_analyses: number;
+  total_completed: number;
+  total_processing: number;
+  total_pending: number;
+  total_error: number;
+  total_gaps: number;
+  total_critical: number;
+  total_high: number;
+  total_medium: number;
+  total_low: number;
+  average_risk_score: number;
+  total_documents: number;
+  total_regulations: number;
+  total_policies: number;
+}
+
 // Comparison & Diff
 export interface GapComparisonItem {
   requirement_id: string;
@@ -133,6 +189,7 @@ export interface PolicyDiffPublic {
 export interface RemediationStepPublic {
   id: number;
   gap_id: number;
+  title: string;
   strategy: string;
   implementation_steps?: string | null;
   effort_size: EffortSize;

@@ -1,8 +1,8 @@
-# RegInforce AI Frontend
+# Comply Lens Frontend
 
 🤖 **AI-Powered Regulatory Compliance Management Platform**
 
-A modern React-based frontend for RegInforce AI, enabling organizations to streamline regulatory compliance through intelligent document analysis, gap identification, and automated remediation planning.
+A modern React-based frontend for Comply Lens, enabling organizations to streamline regulatory compliance through intelligent document analysis, gap identification, and automated remediation planning.
 
 ## 🌟 Features
 
@@ -43,7 +43,7 @@ A modern React-based frontend for RegInforce AI, enabling organizations to strea
 
 - **Node.js** 18+ 
 - **pnpm** (recommended) or npm
-- **RegInforce AI Backend** running on `http://localhost:8000`
+- **Comply Lens Backend** running on `http://localhost:8000`
 
 ### Installation
 
@@ -63,7 +63,7 @@ The application will be available at `http://localhost:5173`
 
 ### Backend Setup
 
-Ensure the RegInforce AI backend is running on `http://localhost:8000`. The frontend is configured with a Vite proxy to handle API calls automatically.
+Ensure the Comply Lens backend is running on `http://localhost:8000`. The frontend is configured with a Vite proxy to handle API calls automatically.
 
 ## 🛠️ Development
 
@@ -117,7 +117,7 @@ src/
 
 ### API Integration
 
-The frontend communicates with the RegInforce AI backend through a RESTful API:
+The frontend communicates with the Comply Lens backend through a RESTful API:
 
 - **Documents**: Upload, list, and manage regulatory documents
 - **Analysis**: Trigger compliance analysis (`POST /api/analysis/run`)
@@ -142,6 +142,28 @@ docker compose down
 
 ### Production Deployment
 
+**🔒 Security Note**: Production deployments are restricted to the `main` branch only for security.
+
+#### **Automatic Deployment (Recommended)**
+```bash
+# Merge to main triggers automatic deployment
+git checkout main
+git pull origin main
+git merge feature-branch
+git push origin main  # 🚀 Auto-deploys to reginforceai.mahahrishi.com
+```
+
+#### **Manual Deployment (Emergency)**
+```bash
+# Must be on main branch
+git checkout main
+git pull origin main
+
+# Use GitHub Actions "Manual Deploy" workflow
+# Available at: https://github.com/coderocker/reginforce-ai-frontend/actions
+```
+
+#### **Local Docker Build**
 ```bash
 # Build production image
 docker build -t reginforce-frontend .
@@ -150,6 +172,15 @@ docker build -t reginforce-frontend .
 docker run -p 80:80 reginforce-frontend
 ```
 
+### 🛡️ **Deployment Security**
+
+- ✅ **Main Branch Only**: Production deployments restricted to `main` branch
+- 🔒 **GitHub Environment Protection**: Uses secured environment secrets
+- 👥 **Review Requirements**: Manual deployments require approval
+- 🚫 **Feature Branch Prevention**: Feature branches cannot deploy to production
+
+See [`docs/branch-protection-strategy.md`](./docs/branch-protection-strategy.md) for complete security details.
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -157,8 +188,8 @@ docker run -p 80:80 reginforce-frontend
 Create a `.env.local` file for local development:
 
 ```env
-VITE_API_URL=http://localhost:8000
-VITE_APP_NAME="RegInforce AI"
+VITE_API_BASE_URL=http://localhost:8000
+VITE_APP_NAME="Comply Lens"
 ```
 
 ### Proxy Configuration
@@ -227,9 +258,9 @@ For support, create an issue in this repository or contact the development team.
 
 ## 🔗 Related Projects
 
-- [RegInforce AI Backend](https://github.com/coderocker/reginforce-ai-backend) - API server and AI processing engine
-- [RegInforce AI Documentation](https://docs.reginforce.ai) - Complete platform documentation
+- [Comply Lens Backend](https://github.com/coderocker/reginforce-ai-backend) - API server and AI processing engine
+- [Comply Lens Documentation](https://docs.reginforce.ai) - Complete platform documentation
 
 ---
 
-**Built with ❤️ by the RegInforce AI Team**
+**Built with ❤️ by the Comply Lens Team**

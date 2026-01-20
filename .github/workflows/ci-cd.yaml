@@ -1,0 +1,332 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, mvp/* ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9.4.0'
+  ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+  NAMESPACE: ${{ github.ref_name == 'main' && 'prod-regai' || 'dev-regai' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+      - name: Run type check
+        run: pnpm type-check
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: dist/
+          retention-days: 1
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=RegInforce AI Frontend
+            org.opencontainers.image.description=Regulatory compliance and analysis frontend application
+            org.opencontainers.image.vendor=RegInforce AI
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            NODE_VERSION=${{ env.NODE_VERSION }}
+          provenance: false
+          sbom: false
+
+      - name: Output image
+        id: image
+        run: |
+          # Extract the main image tag from the metadata
+          IMAGE_TAG=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)
+          echo "image=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.image }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.spdx.json
+          retention-days: 30
+
+  security-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build-and-push.outputs.image }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail the build on vulnerabilities
+
+      - name: Run Trivy for table output
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build-and-push.outputs.image }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  deploy-production:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'release')
+    environment:
+      name: prod  # Only deploys from main branch now, so always prod
+      url: ${{ vars.APP_BASE_URL || 'http://reginforceai.mahahrishi.com' }}
+    env:
+      NAMESPACE: prod-regai  # Production namespace
+      REGISTRY: ghcr.io
+      IMAGE_NAME: coderocker/reginforce-ai-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: '1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.13.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          # Verify connection to k3s cluster
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create image pull secret for GHCR
+        run: |
+          kubectl create secret docker-registry ghcr-secret \
+            --namespace=${{ env.NAMESPACE }} \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --docker-email=${{ github.actor }}@users.noreply.github.com \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm to k3s production
+        run: |
+          # Validate deployment is from main branch
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            echo "❌ Production deployment blocked - only main branch allowed!"
+            echo "Current branch: ${{ github.ref_name }}"
+            exit 1
+          fi
+          
+          echo "🚀 Deploying to PRODUCTION from main branch"
+          echo "📦 Namespace: ${{ env.NAMESPACE }}"
+          echo "🌐 Host: reginforceai.mahahrishi.com"
+          echo "🔗 API URL: ${{ vars.API_BASE_URL }}"
+          
+          # Extract the built image tag
+          IMAGE_TAG=$(echo '${{ needs.build-and-push.outputs.image }}' | cut -d':' -f2)
+          echo "🏷️  Image Tag: ${IMAGE_TAG}"
+          
+          # Deploy using Helm chart with k3s values - PRODUCTION ONLY
+          helm upgrade --install reginforce-frontend ./helm/reginforce-ai-frontend \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            --values ./helm/reginforce-ai-frontend/values-k3s.yaml \
+            --set image.tag="${IMAGE_TAG}" \
+            --set image.repository="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" \
+            --set replicaCount=2 \
+            --set ingress.hosts[0].host="reginforceai.mahahrishi.com" \
+            --set ingress.tls[0].hosts[0]="reginforceai.mahahrishi.com" \
+            --set env[0].name="NODE_ENV" \
+            --set env[0].value="production" \
+            --set env[1].name="VITE_API_BASE_URL" \
+            --set env[1].value="${{ vars.API_BASE_URL }}" \
+            --set resources.requests.memory="64Mi" \
+            --set resources.requests.cpu="50m" \
+            --set resources.limits.memory="128Mi" \
+            --set resources.limits.cpu="100m" \
+            --wait \
+            --timeout=300s
+
+      - name: Wait for Helm deployment to be ready
+        run: |
+          # Wait for Helm deployment (Helm creates deployment with chart name)
+          kubectl rollout status deployment/reginforce-frontend -n ${{ env.NAMESPACE }} --timeout=300s
+
+      - name: Verify Helm deployment
+        run: |
+          echo "=== Helm Release Status ==="
+          helm status reginforce-frontend -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== Deployment Status ==="
+          kubectl get deployment -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=reginforce-ai-frontend
+          echo ""
+          echo "=== Pods Status ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=reginforce-ai-frontend
+          echo ""
+          echo "=== Service Status ==="
+          kubectl get service -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=reginforce-ai-frontend
+          echo ""
+          echo "=== Ingress Status ==="
+          kubectl get ingress -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=reginforce-ai-frontend
+
+  cleanup-images:
+    needs: [deploy-production]
+    runs-on: ubuntu-latest
+    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Delete old container images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ github.event.repository.name }}
+          package-type: 'container'
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+
+  notify:
+    needs: [deploy-production, cleanup-images]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.ref == 'refs/heads/main' && 'Production' || 'Staging' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ needs.deploy-production.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify deployment status
+        uses: 8398a7/action-slack@v3
+        if: always() && env.SLACK_WEBHOOK != ''
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

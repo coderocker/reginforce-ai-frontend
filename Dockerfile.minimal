@@ -1,0 +1,83 @@
+# Multi-stage Dockerfile with ultra-small final image
+# Alternative approach using scratch + static binary
+
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@latest
+
+# Copy package files for better layer caching
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile --prod=false
+
+# Copy source and build
+COPY . .
+RUN pnpm build && \
+  # Optimize build output
+  find dist -name "*.map" -delete && \
+  find dist -name "*.test.*" -delete && \
+  # Compress assets
+  find dist -name "*.js" -exec gzip -9 -c {} \; > {}.gz && \
+  find dist -name "*.css" -exec gzip -9 -c {} \; > {}.gz && \
+  find dist -name "*.html" -exec gzip -9 -c {} \; > {}.gz
+
+# Minimal static server stage
+FROM alpine:3.19 AS server-builder
+
+# Install build dependencies
+RUN apk add --no-cache go git
+
+# Create minimal Go static server
+WORKDIR /src
+COPY <<EOF main.go
+package main
+
+import (
+    "flag"
+    "log"
+    "net/http"
+    "os"
+    "path/filepath" 
+    "strings"
+)
+
+func main() {
+    port := flag.String("port", "8080", "Port to serve on")
+    dir := flag.String("dir", "/app", "Directory to serve")
+    flag.Parse()
+
+    fs := http.FileServer(http.Dir(*dir))
+    
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        path := filepath.Join(*dir, r.URL.Path)
+        if _, err := os.Stat(path); os.IsNotExist(err) && !strings.Contains(r.URL.Path, ".") {
+            http.ServeFile(w, r, filepath.Join(*dir, "index.html"))
+            return
+        }
+        fs.ServeHTTP(w, r)
+    })
+
+    log.Printf("Serving on :%s", *port)
+    log.Fatal(http.ListenAndServe(":"+*port, nil))
+}
+EOF# Build static binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o serve main.go
+
+# Final ultra-minimal stage
+FROM scratch
+
+# Copy static files and server binary
+COPY --from=builder /app/dist /app/
+COPY --from=server-builder /src/serve /serve
+
+# Non-root user
+USER 65534:65534
+
+EXPOSE 8080
+
+CMD ["/serve", "-port=8080", "-dir=/app"]

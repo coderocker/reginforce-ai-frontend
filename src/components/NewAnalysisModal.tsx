@@ -1,48 +1,85 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { getDocuments, runAnalysis } from "../api";
+import { getDocuments, runAnalysis, pollReportStatus } from "../api";
 import { Button } from "./ui/Button";
 import type { DocumentPublic } from "../types/api";
 
 interface NewAnalysisModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess?: () => void;
 }
 
-export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalProps) {
-  const [regulationId, setRegulationId] = useState<number | null>(null);
-  const [policyId, setPolicyId] = useState<number | null>(null);
+export default function NewAnalysisModal({ isOpen, onClose, onSuccess }: NewAnalysisModalProps) {
+  const [selectedRegulation, setSelectedRegulation] = useState<string>("");
+  const [regulationVersionId, setRegulationVersionId] = useState<number | null>(null);
+  const [selectedPolicy, setSelectedPolicy] = useState<string>("");
+  const [policyVersionId, setPolicyVersionId] = useState<number | null>(null);
+  const [pollingMessage, setPollingMessage] = useState<string>("");
   const navigate = useNavigate();
 
   const { data: documents } = useQuery({
     queryKey: ["documents"],
-    queryFn: getDocuments,
+    queryFn: () => getDocuments(),
   });
 
   const processedDocuments = documents?.filter(doc => doc.status === "processed") || [];
-  const regulations = processedDocuments.filter(doc => doc.doc_type === "regulation");
-  const policies = processedDocuments.filter(doc => doc.doc_type === "policy");
+
+  // Group documents by base filename to show unique document names
+  const groupedRegulations = processedDocuments
+    .filter(doc => doc.doc_type === "regulation")
+    .reduce((acc: Record<string, DocumentPublic[]>, doc) => {
+      const baseFileName = doc.filename.replace(/\s*\(v\d+\)/, '').trim();
+      if (!acc[baseFileName]) acc[baseFileName] = [];
+      acc[baseFileName].push(doc);
+      return acc;
+    }, {});
+
+  const groupedPolicies = processedDocuments
+    .filter(doc => doc.doc_type === "policy")
+    .reduce((acc: Record<string, DocumentPublic[]>, doc) => {
+      const baseFileName = doc.filename.replace(/\s*\(v\d+\)/, '').trim();
+      if (!acc[baseFileName]) acc[baseFileName] = [];
+      acc[baseFileName].push(doc);
+      return acc;
+    }, {});
+
+  const selectedRegulationVersions = selectedRegulation ? groupedRegulations[selectedRegulation] || [] : [];
+  const selectedPolicyVersions = selectedPolicy ? groupedPolicies[selectedPolicy] || [] : [];
 
   const analysisMutation = useMutation({
-    mutationFn: runAnalysis,
-    onSuccess: (response) => {
-      console.log("Analysis started:", response);
+    mutationFn: async (data: { regulation_doc_id: number; policy_doc_id: number }) => {
+      // Step 1: Create report (returns immediately with status "pending")
+      setPollingMessage("Creating report...");
+      const report = await runAnalysis(data);
+      
+      // Step 2: Poll for completion
+      setPollingMessage("Analyzing compliance gaps (this may take a few seconds)...");
+      const completedReport = await pollReportStatus(report.id);
+      
+      return completedReport;
+    },
+    onSuccess: (report) => {
+      console.log("Analysis completed:", report);
+      setPollingMessage("");
       onClose();
-      navigate(`/reports/${response.id}`);
+      onSuccess?.(); // Call the optional refresh callback
+      navigate(`/reports/${report.id}`);
     },
     onError: (error) => {
       console.error("Analysis failed:", error);
-      alert("Failed to start analysis: " + error.message);
+      setPollingMessage("");
+      alert("Failed to complete analysis: " + (error instanceof Error ? error.message : "Unknown error"));
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (regulationId && policyId) {
+    if (regulationVersionId && policyVersionId) {
       analysisMutation.mutate({
-        regulation_doc_id: regulationId,
-        policy_doc_id: policyId,
+        regulation_doc_id: regulationVersionId,
+        policy_doc_id: policyVersionId,
       });
     }
   };
@@ -56,7 +93,8 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
           <h2 className="text-xl font-bold">New Analysis</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            disabled={analysisMutation.isPending}
+            className="text-gray-500 hover:text-gray-700 disabled:text-gray-300"
             aria-label="Close modal"
           >
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,54 +103,125 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
           </button>
         </div>
 
+        {analysisMutation.isPending && pollingMessage && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-blue-700">{pollingMessage}</p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Regulation Selection */}
           <div>
             <label htmlFor="regulation-select" className="block text-sm font-medium text-gray-700 mb-1">
-              Select Regulation
+              Select Regulation Document
             </label>
             <select
               id="regulation-select"
-              value={regulationId || ""}
-              onChange={(e) => setRegulationId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={selectedRegulation}
+              onChange={(e) => {
+                setSelectedRegulation(e.target.value);
+                setRegulationVersionId(null); // Reset version when document changes
+              }}
+              disabled={analysisMutation.isPending}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               required
             >
               <option value="">Choose a regulation document...</option>
-              {regulations.map((doc: DocumentPublic) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.filename}
+              {Object.keys(groupedRegulations).map((fileName) => (
+                <option key={fileName} value={fileName}>
+                  {fileName}
                 </option>
               ))}
             </select>
           </div>
 
+          {/* Regulation Version Selection */}
+          {selectedRegulation && (
+            <div>
+              <label htmlFor="regulation-version-select" className="block text-sm font-medium text-gray-700 mb-1">
+                Select Regulation Version
+              </label>
+              <select
+                id="regulation-version-select"
+                value={regulationVersionId || ""}
+                onChange={(e) => setRegulationVersionId(e.target.value ? Number(e.target.value) : null)}
+                disabled={analysisMutation.isPending}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                required
+              >
+                <option value="">Choose a version...</option>
+                {selectedRegulationVersions
+                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+                  .map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      v{doc.version_number || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
+          {/* Policy Selection */}
           <div>
             <label htmlFor="policy-select" className="block text-sm font-medium text-gray-700 mb-1">
-              Select Policy
+              Select Policy Document
             </label>
             <select
               id="policy-select"
-              value={policyId || ""}
-              onChange={(e) => setPolicyId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={selectedPolicy}
+              onChange={(e) => {
+                setSelectedPolicy(e.target.value);
+                setPolicyVersionId(null); // Reset version when document changes
+              }}
+              disabled={analysisMutation.isPending}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               required
             >
               <option value="">Choose a policy document...</option>
-              {policies.map((doc: DocumentPublic) => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.filename}
+              {Object.keys(groupedPolicies).map((fileName) => (
+                <option key={fileName} value={fileName}>
+                  {fileName}
                 </option>
               ))}
             </select>
           </div>
 
-          {regulations.length === 0 && (
+          {/* Policy Version Selection */}
+          {selectedPolicy && (
+            <div>
+              <label htmlFor="policy-version-select" className="block text-sm font-medium text-gray-700 mb-1">
+                Select Policy Version
+              </label>
+              <select
+                id="policy-version-select"
+                value={policyVersionId || ""}
+                onChange={(e) => setPolicyVersionId(e.target.value ? Number(e.target.value) : null)}
+                disabled={analysisMutation.isPending}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                required
+              >
+                <option value="">Choose a version...</option>
+                {selectedPolicyVersions
+                  .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+                  .map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      v{doc.version_number || 1} {doc.is_latest && '(Latest)'} - {new Date(doc.created_at).toLocaleDateString()}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
+          {Object.keys(groupedRegulations).length === 0 && (
             <div className="text-amber-600 text-sm p-3 bg-amber-50 rounded-md">
               No processed regulation documents available. Please upload and process regulation documents first.
             </div>
           )}
 
-          {policies.length === 0 && (
+          {Object.keys(groupedPolicies).length === 0 && (
             <div className="text-amber-600 text-sm p-3 bg-amber-50 rounded-md">
               No processed policy documents available. Please upload and process policy documents first.
             </div>
@@ -123,6 +232,7 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
               type="button"
               variant="secondary"
               onClick={onClose}
+              disabled={analysisMutation.isPending}
               className="flex-1"
             >
               Cancel
@@ -130,11 +240,11 @@ export default function NewAnalysisModal({ isOpen, onClose }: NewAnalysisModalPr
             <Button
               type="submit"
               variant="primary"
-              disabled={!regulationId || !policyId || analysisMutation.isPending}
+              disabled={!regulationVersionId || !policyVersionId || analysisMutation.isPending}
               isLoading={analysisMutation.isPending}
               className="flex-1"
             >
-              {analysisMutation.isPending ? "Starting Analysis..." : "Run Analysis"}
+              {analysisMutation.isPending ? "Analyzing..." : "Run Analysis"}
             </Button>
           </div>
         </form>
