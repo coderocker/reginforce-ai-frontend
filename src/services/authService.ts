@@ -126,6 +126,7 @@ const authService = {
         client_id: KEYCLOAK_CLIENT_ID,
         client_secret: KEYCLOAK_CLIENT_SECRET,
         grant_type: "password",
+        scope: "openid organization profile email",
       });
 
       return response.data;
@@ -154,6 +155,7 @@ const authService = {
         client_id: KEYCLOAK_CLIENT_ID,
         client_secret: KEYCLOAK_CLIENT_SECRET,
         grant_type: "refresh_token",
+        scope: "openid organization profile email",
       });
 
       return response.data;

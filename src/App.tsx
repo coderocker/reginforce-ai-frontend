@@ -39,7 +39,7 @@ function App() {
                       <Route path="/documents/:id" element={<DocumentDetail />} />
                       <Route path="/reports" element={<ReportsListing />} />
                       <Route path="/reports/:reportId" element={<Reports />} />
-                      <Route path="/remediation/:planId" element={<Remediation />} />
+                      <Route path="/remediation/:reportId" element={<Remediation />} />
                       
                       {/* OSS Compliance Routes */}
                       <Route path="/package-vetting" element={<PackageVetting />} />

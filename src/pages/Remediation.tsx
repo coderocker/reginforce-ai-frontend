@@ -39,6 +39,8 @@ const nodeTypes = {};
 const edgeTypes = {};
 
 import {
+  getRemediationPlanForReport,
+  createRemediationPlan,
   getRemediationPlan,
   getDependencyGraph,
   updateRemediationStepStatus,
@@ -308,12 +310,13 @@ const DragOverlayCard = ({ step }: { step: RemediationStepPublic }) => {
 };
 
 export function Remediation() {
-  const { planId } = useParams<{ planId: string }>();
+  const { reportId } = useParams<{ reportId: string }>();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"kanban" | "flow">("kanban");
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [activeId, setActiveId] = useState<string | number | null>(null);
+  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
 
   // Sensors for drag and drop
   const sensors = useSensors(
@@ -327,21 +330,89 @@ export function Remediation() {
     })
   );
 
-  // Fetch remediation plan
+  // State to hold the created plan
+  const [createdPlan, setCreatedPlan] = useState<any>(null);
+  const [isFetchingFullPlan, setIsFetchingFullPlan] = useState(false);
+
+  // Reset created plan when reportId changes
+  useEffect(() => {
+    setCreatedPlan(null);
+    setIsFetchingFullPlan(false);
+    setIsCreatingPlan(false);
+  }, [reportId]);
+
+  // First, try to get existing plan for the report
   const {
-    data: plan,
-    isLoading: planLoading,
-    error: planError
+    data: existingPlan,
+    isLoading: existingPlanLoading,
+    error: existingPlanError,
   } = useQuery({
-    queryKey: ['remediationPlan', planId],
-    queryFn: () => getRemediationPlan(Number(planId)),
-    enabled: !!planId,
+    queryKey: ['remediationPlanForReport', reportId],
+    queryFn: () => getRemediationPlanForReport(Number(reportId)),
+    enabled: !!reportId,
+  });
+
+  // Create plan mutation
+  const createPlanMutation = useMutation({
+    mutationFn: () => createRemediationPlan(Number(reportId)),
+    onSuccess: async (data) => {
+      console.log('Plan created successfully:', data);
+      
+      // Keep loading state while fetching full plan
+      setIsFetchingFullPlan(true);
+      
+      // Fetch the full plan with steps
+      if (data?.id) {
+        try {
+          const fullPlan = await getRemediationPlan(data.id);
+          console.log('Full plan fetched:', fullPlan);
+          setCreatedPlan(fullPlan);
+        } catch (fetchError) {
+          console.error('Failed to fetch full plan:', fetchError);
+          // Fallback to the create response
+          setCreatedPlan(data);
+        }
+      } else {
+        setCreatedPlan(data);
+      }
+      
+      // Also invalidate the query to refresh
+      queryClient.invalidateQueries({ queryKey: ['remediationPlanForReport', reportId] });
+      setIsCreatingPlan(false);
+      setIsFetchingFullPlan(false);
+    },
+    onError: (error) => {
+      console.error('Failed to create plan:', error);
+      setIsCreatingPlan(false);
+      setIsFetchingFullPlan(false);
+    }
+  });
+
+  // Use existing plan, created plan, or null
+  const plan = existingPlan || createdPlan;
+  const planId = plan?.id;
+  // Include isFetchingFullPlan to maintain loading state during async operations
+  const planLoading = existingPlanLoading || isCreatingPlan || createPlanMutation.isPending || isFetchingFullPlan;
+  const planError = existingPlanError;
+
+  // Debug logging
+  console.log('Remediation State:', {
+    reportId,
+    existingPlan: existingPlan?.id,
+    createdPlan: createdPlan?.id,
+    plan: plan?.id,
+    planSteps: plan?.steps?.length,
+    planLoading,
+    existingPlanLoading,
+    isCreatingPlan,
+    isPending: createPlanMutation.isPending,
+    isFetchingFullPlan
   });
 
   // Fetch dependency graph
   const { data: dependencyGraph } = useQuery({
     queryKey: ['dependencyGraph', planId],
-    queryFn: () => getDependencyGraph(Number(planId)),
+    queryFn: () => getDependencyGraph(planId!),
     enabled: !!planId && activeTab === "flow",
   });
 
@@ -350,7 +421,7 @@ export function Remediation() {
     mutationFn: ({ stepId, status }: { stepId: number; status: string }) =>
       updateRemediationStepStatus(stepId, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['remediationPlan', planId] });
+      queryClient.invalidateQueries({ queryKey: ['remediationPlanForReport', reportId] });
     },
   });
 
@@ -359,7 +430,7 @@ export function Remediation() {
 
   // Export plan mutation
   const exportPlanMutation = useMutation({
-    mutationFn: (format: string) => exportRemediationPlan(Number(planId), format),
+    mutationFn: (format: string) => exportRemediationPlan(planId!, format),
     onSuccess: (data, format) => {
       // Handle file download with proper extension
       const fileExtensions: Record<string, string> = {
@@ -553,14 +624,61 @@ export function Remediation() {
     );
   }
 
-  if (planError || !plan) {
+  if (planError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Plan Not Found</h1>
-        <p className="text-gray-600 mb-8">The remediation plan you're looking for doesn't exist.</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Plan</h1>
+        <p className="text-gray-600 mb-8">There was an error loading the remediation plan.</p>
         <Link to="/dashboard" className="text-blue-600 hover:text-blue-800">
           Return to Dashboard
         </Link>
+      </div>
+    );
+  }
+
+  // No plan exists yet - show create plan option
+  if (!planLoading && !plan) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-6">📋</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">No Remediation Plan Yet</h1>
+          <p className="text-gray-600 mb-8">
+            A remediation plan hasn't been created for this analysis report yet. 
+            Would you like to generate one?
+          </p>
+          <div className="flex flex-col gap-4">
+            <Button
+              variant="primary"
+              onClick={() => {
+                console.log('Generate Remediation Plan button clicked');
+                console.log('isPending:', createPlanMutation.isPending);
+                setIsCreatingPlan(true);
+                createPlanMutation.mutate();
+              }}
+              disabled={createPlanMutation.isPending}
+            >
+              {createPlanMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                  Generating Plan...
+                </span>
+              ) : (
+                '🚀 Generate Remediation Plan'
+              )}
+            </Button>
+            <Link to={`/reports/${reportId}`} className="text-blue-600 hover:text-blue-800">
+              ← Back to Report
+            </Link>
+          </div>
+          {createPlanMutation.isError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">
+                Failed to create plan: {(createPlanMutation.error as Error)?.message || 'Unknown error'}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

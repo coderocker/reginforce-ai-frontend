@@ -34,12 +34,27 @@ export function Dashboard() {
     staleTime: 60000, // 1 minute
   });
 
-  // Calculate dashboard metrics from stats API
+  // Helper to get severity from gap (handles both 'severity' and 'severity_level')
+  const getGapSeverity = (gap: any): string | null => {
+    return gap.severity || gap.severity_level || null;
+  };
+
+  // Calculate dashboard metrics from stats API with fallback to reports data
   const totalDocuments = stats?.total_documents || documents.length;
   const totalReports = stats?.total_analyses || reports.length;
   const completedReports = reports.filter(r => r.status === 'processed');
-  const totalGaps = stats?.total_gaps || 0;
-  const totalHighRiskGaps = (stats?.total_critical || 0) + (stats?.total_high || 0);
+  
+  // Calculate gaps from reports if stats doesn't provide them
+  const calculatedGaps = reports.reduce((acc, r) => acc + (r.gaps?.length || 0), 0);
+  const calculatedCritical = reports.reduce((acc, r) => 
+    acc + (r.gaps?.filter(g => getGapSeverity(g)?.toLowerCase() === 'critical').length || 0), 0);
+  const calculatedHigh = reports.reduce((acc, r) => 
+    acc + (r.gaps?.filter(g => getGapSeverity(g)?.toLowerCase() === 'high').length || 0), 0);
+  
+  const totalGaps = stats?.total_gaps || calculatedGaps;
+  const totalCritical = stats?.total_critical || calculatedCritical;
+  const totalHigh = stats?.total_high || calculatedHigh;
+  const totalHighRiskGaps = totalCritical + totalHigh;
 
   // Recent activity
   const recentReports = reports
@@ -136,14 +151,14 @@ export function Dashboard() {
                   <div className="mt-2 flex items-baseline gap-3">
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-bold text-red-600">
-                        {isLoading ? '...' : (stats?.total_critical || 0)}
+                        {isLoading ? '...' : totalCritical}
                       </span>
                       <span className="text-xs text-red-500 font-medium">Critical</span>
                     </div>
                     <div className="text-gray-300">+</div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl font-bold text-orange-600">
-                        {isLoading ? '...' : (stats?.total_high || 0)}
+                        {isLoading ? '...' : totalHigh}
                       </span>
                       <span className="text-xs text-orange-500 font-medium">High</span>
                     </div>
@@ -250,30 +265,36 @@ export function Dashboard() {
         </Card>
 
         {/* Risk Breakdown */}
-        {stats && stats.total_gaps > 0 && (
+        {totalGaps > 0 && (
           <Card>
             <div className="p-6">
               <h3 className="text-lg font-bold mb-4 text-gray-900">Risk Distribution</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">{stats.total_critical}</div>
+                  <div className="text-2xl font-bold text-red-600">{totalCritical}</div>
                   <div className="text-sm text-red-600 mt-1">Critical</div>
                 </div>
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{stats.total_high}</div>
+                  <div className="text-2xl font-bold text-orange-600">{totalHigh}</div>
                   <div className="text-sm text-orange-600 mt-1">High</div>
                 </div>
                 <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-600">{stats.total_medium}</div>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {stats?.total_medium || reports.reduce((acc, r) => 
+                      acc + (r.gaps?.filter(g => getGapSeverity(g)?.toLowerCase() === 'medium').length || 0), 0)}
+                  </div>
                   <div className="text-sm text-yellow-600 mt-1">Medium</div>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{stats.total_low}</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {stats?.total_low || reports.reduce((acc, r) => 
+                      acc + (r.gaps?.filter(g => getGapSeverity(g)?.toLowerCase() === 'low').length || 0), 0)}
+                  </div>
                   <div className="text-sm text-green-600 mt-1">Low</div>
                 </div>
               </div>
               <div className="mt-4 text-center text-sm text-gray-600">
-                Average Risk Score: <span className="font-semibold">{stats.average_risk_score?.toFixed(3) || 'N/A'}</span>
+                Average Risk Score: <span className="font-semibold">{stats?.average_risk_score?.toFixed(3) || 'N/A'}</span>
               </div>
             </div>
           </Card>
@@ -407,18 +428,18 @@ export function Dashboard() {
                   {recentDocuments.map((doc) => (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg gap-3"
                     >
-                      <div>
-                        <h4 className="font-medium text-gray-900 truncate">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate" title={doc.filename}>
                           {doc.filename}
                         </h4>
                         <p className="text-sm text-gray-600">
                           {new Date(doc.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-1 rounded ${doc.doc_type === 'regulation'
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${doc.doc_type === 'regulation'
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-green-100 text-green-800'
                           }`}>

@@ -104,8 +104,8 @@ export function ReportsListing() {
   React.useEffect(() => {
     const testDirectFetch = async () => {
       try {
-        console.log('🔍 Testing direct fetch to /api/analysis/stats');
-        const response = await fetch('/api/analysis/stats');
+        console.log('🔍 Testing direct fetch to /api/analysis/reports/statistics');
+        const response = await fetch('/api/analysis/reports/statistics');
         console.log('Direct fetch status:', response.status);
         if (response.ok) {
           const data = await response.json();
@@ -379,21 +379,21 @@ export function ReportsListing() {
                           {report.gaps.length} total gaps identified
                         </div>
                       )}                                          {/* Actions */}
-                      <div className="flex gap-2">
-                        <Link to={`/reports/${report.id}`} className="flex-1">
+                      <div className="flex gap-2 items-center">
+                        <Link to={`/reports/${report.id}`} className="flex-1 min-w-0">
                           <Button variant="primary" size="sm" className="w-full">
-                            View Report
+                            View
                           </Button>
                         </Link>
-                        <Link to={`/remediation/${report.id}`}>
+                        <Link to={`/remediation/${report.id}`} className="flex-shrink-0">
                           <Button variant="secondary" size="sm">
-                            Remediate
+                            Fix
                           </Button>
                         </Link>
                         <button
                           onClick={() => setDeleteConfirmReport(report)}
                           disabled={report.status === 'processing'}
-                          className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                          className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded text-sm font-medium transition-colors ${
                             report.status === 'processing'
                               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                               : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'

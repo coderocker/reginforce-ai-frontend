@@ -220,23 +220,61 @@ export const getPolicyDiff = async (
 export const getRemediationPlansForReport = async (
   reportId: number
 ): Promise<RemediationPlanPublic[]> => {
-  const response = await apiClient.get<RemediationPlanPublic[]>(
-    `/api/remediation/reports/${reportId}/plans`
-  );
-  return response.data;
+  console.log(`Fetching remediation plans for report ${reportId}`);
+  try {
+    const response = await apiClient.get<RemediationPlanPublic[] | { plans?: RemediationPlanPublic[], data?: RemediationPlanPublic[] }>(
+      `/api/remediation/reports/${reportId}/plans`
+    );
+    
+    // Handle different response structures
+    let plans: RemediationPlanPublic[] = [];
+    if (Array.isArray(response.data)) {
+      plans = response.data;
+    } else if (response.data && typeof response.data === 'object') {
+      // Handle wrapped responses like { plans: [...] } or { data: [...] }
+      plans = (response.data as any).plans || (response.data as any).data || [];
+    }
+    
+    console.log(`Found ${plans.length} plans for report ${reportId}:`, plans);
+    return plans;
+  } catch (error: any) {
+    // If 404, it means no plans exist yet - return empty array
+    if (error.response?.status === 404) {
+      console.log(`No plans found for report ${reportId} (404)`);
+      return [];
+    }
+    console.error(`Error fetching plans for report ${reportId}:`, error);
+    throw error;
+  }
 };
 
-// Legacy alias - returns first plan or null
+// Returns the latest plan for a report (sorted by created_at descending)
 export const getRemediationPlanForReport = async (
   reportId: number
 ): Promise<RemediationPlanPublic | null> => {
   const plans = await getRemediationPlansForReport(reportId);
-  return plans?.[0] || null;
+  
+  if (!plans || plans.length === 0) {
+    console.log(`getRemediationPlanForReport: no plans found for report ${reportId}`);
+    return null;
+  }
+  
+  // Sort by created_at descending to get the latest plan
+  const sortedPlans = [...plans].sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime();
+    const dateB = new Date(b.created_at).getTime();
+    return dateB - dateA; // Descending order (latest first)
+  });
+  
+  const latestPlan = sortedPlans[0];
+  console.log(`getRemediationPlanForReport: found ${plans.length} plans, returning latest plan ${latestPlan?.id} (created: ${latestPlan?.created_at})`);
+  return latestPlan;
 };
 
 export const createRemediationPlan = async (
   reportId: number,
   options?: {
+    title?: string;
     organization_size?: string;
     industry?: string;
     target_completion_days?: number;
@@ -246,6 +284,7 @@ export const createRemediationPlan = async (
     `/api/remediation/plans`,
     {
       analysis_report_id: reportId,
+      title: options?.title || `Remediation Plan for Report ${reportId}`,
       ...options
     }
   );
@@ -266,10 +305,21 @@ export const generateRemediationPlan = async (
 export const getRemediationPlan = async (
   planId: number
 ): Promise<RemediationPlanPublic> => {
-  const response = await apiClient.get<RemediationPlanPublic>(
+  const response = await apiClient.get<RemediationPlanPublic | { plan: RemediationPlanPublic, steps: any[] }>(
     `/api/remediation/plans/${planId}`
   );
-  return response.data;
+  
+  // Handle nested response structure {plan: {...}, steps: [...]}
+  if (response.data && 'plan' in response.data && response.data.plan) {
+    const { plan, steps } = response.data as { plan: RemediationPlanPublic, steps: any[] };
+    console.log('getRemediationPlan: unwrapping nested response, plan id:', plan.id);
+    return {
+      ...plan,
+      steps: steps || plan.steps || []
+    };
+  }
+  
+  return response.data as RemediationPlanPublic;
 };
 
 // Build dependency graph from plan steps

@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getReport, getReportTrends, deleteReport } from "../api";
+import { getReport, getReportTrends, deleteReport, getRemediationPlanForReport } from "../api";
 import type { GapPublic } from "../types/api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -112,6 +112,15 @@ export function Reports() {
     queryFn: () => getReportTrends(),
     enabled: !!numericReportId,
   });
+
+  // Check if remediation plan exists for this report
+  const { data: existingRemediationPlan } = useQuery({
+    queryKey: ["remediation-plan-check", numericReportId],
+    queryFn: () => getRemediationPlanForReport(numericReportId),
+    enabled: !!numericReportId,
+  });
+
+  const hasRemediationPlan = !!existingRemediationPlan;
 
   if (isLoading) {
     return (
@@ -268,7 +277,7 @@ export function Reports() {
             </Button>
             <Link to={`/remediation/${report.id}`}>
               <Button variant="primary" size="sm">
-                Create Remediation Plan
+                {hasRemediationPlan ? '📋 View Remediation Plan' : '🚀 Create Remediation Plan'}
               </Button>
             </Link>
             <button
