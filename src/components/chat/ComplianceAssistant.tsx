@@ -261,7 +261,7 @@ export function ComplianceAssistant({
       lastMessageIdsRef.current.add(sentMessage.id);
 
       setIsThinking(true);
-      pollForAIResponse(conversationToUse.id);
+      pollForAIResponse(conversationToUse.id, sentMessage.id);
     } catch (error) {
       console.error("Failed to send message:", error);
       alert("Failed to send message. Please try again.");
@@ -274,11 +274,22 @@ export function ComplianceAssistant({
     setInputMessage(action);
   };
 
-  const pollForAIResponse = (conversationId: number) => {
+  const isFailedAssistantMessage = (content: string) =>
+    /unable to process your request|error:\s*client error/i.test(content);
+
+  const pollForAIResponse = (conversationId: number, userMessageId: number) => {
     let retries = 0;
-    const maxRetries = 20;
-    
+    // RAG + Gemini can take 30–60s; previous 20s limit stopped before the reply was saved
+    const maxRetries = 90;
+    const pollIntervalMs = 1000;
+
     activePollingConversationRef.current = conversationId;
+
+    const syncMessages = (updatedMessages: MessagePublic[]) => {
+      const sorted = [...updatedMessages].sort((a, b) => a.id - b.id);
+      sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
+      setMessages(sorted);
+    };
 
     const attemptFetch = async () => {
       if (activePollingConversationRef.current !== conversationId) return;
@@ -288,22 +299,28 @@ export function ComplianceAssistant({
 
         if (activePollingConversationRef.current !== conversationId) return;
 
-        const newMessages = updatedMessages.filter(
-          (msg) => !lastMessageIdsRef.current.has(msg.id)
+        const assistantReply = updatedMessages.find(
+          (msg) =>
+            msg.role === "assistant" &&
+            msg.id > userMessageId &&
+            msg.content &&
+            !isFailedAssistantMessage(msg.content)
         );
-        
-        if (newMessages.length > 0) {
-          newMessages.forEach(msg => lastMessageIdsRef.current.add(msg.id));
-          setMessages((prev) => [...prev, ...newMessages]);
+
+        if (assistantReply) {
+          syncMessages(updatedMessages);
           setIsThinking(false);
+          activePollingConversationRef.current = null;
           return;
         }
-        
+
         if (retries < maxRetries) {
           retries++;
-          const timeoutId = setTimeout(attemptFetch, 1000);
+          const timeoutId = setTimeout(attemptFetch, pollIntervalMs);
           pollingTimeoutRef.current = timeoutId;
         } else {
+          // Final sync so a late backend reply still appears if it landed during the last poll
+          syncMessages(updatedMessages);
           setIsThinking(false);
           activePollingConversationRef.current = null;
         }
@@ -311,7 +328,7 @@ export function ComplianceAssistant({
         console.error("Failed to fetch messages:", error);
         if (retries < maxRetries) {
           retries++;
-          const timeoutId = setTimeout(attemptFetch, 1000);
+          const timeoutId = setTimeout(attemptFetch, pollIntervalMs);
           pollingTimeoutRef.current = timeoutId;
         } else {
           setIsThinking(false);
