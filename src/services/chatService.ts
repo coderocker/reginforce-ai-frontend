@@ -7,17 +7,38 @@ import type {
   MessageCreate,
   ConversationCreate,
   ConversationStats,
+  ChatMessageMetadata,
+  ChatSource,
 } from "../types/chat";
 
 export interface StreamChatHandlers {
   onStart?: (data: { conversation_id: number; user_message_id: number }) => void;
+  onStatus?: (message: string) => void;
   onText?: (chunk: string) => void;
   onDone?: (data: {
     message_id: number | null;
     timings?: Record<string, number>;
     is_rag_augmented?: boolean;
+    sources?: ChatSource[];
+    follow_up_suggestions?: string[];
   }) => void;
   onError?: (message: string, usePollFallback?: boolean) => void;
+}
+
+function parseMessageMetadata(raw?: string): ChatMessageMetadata | undefined {
+  if (!raw) return undefined;
+  try {
+    const data = JSON.parse(raw) as ChatMessageMetadata;
+    if (data?.sources || data?.follow_up_suggestions) return data;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function enrichMessage(msg: MessagePublic): MessagePublic {
+  const metadata = parseMessageMetadata(msg.referenced_analyses);
+  return metadata ? { ...msg, chat_metadata: metadata } : msg;
 }
 
 class ChatService {
@@ -109,34 +130,15 @@ class ChatService {
       `/api/chat/conversations/${conversationId}/messages`,
       message
     );
-    return response.data;
+    return enrichMessage(response.data);
   }
 
-  /**
-   * Send a message and stream the assistant response (SSE).
-   * POST /api/chat/conversations/{conversation_id}/messages/stream
-   */
-  async streamMessage(
-    conversationId: number,
-    message: MessageCreate,
-    accessToken: string,
+  private async consumeSseStream(
+    response: Response,
     handlers: StreamChatHandlers
   ): Promise<void> {
-    const baseURL = apiClient.defaults.baseURL || "http://localhost:8000";
-    const response = await fetch(
-      `${baseURL}/api/chat/conversations/${conversationId}/messages/stream`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(message),
-      }
-    );
-
-    if (!response.ok || !response.body) {
-      throw new Error(`Stream request failed (${response.status})`);
+    if (!response.body) {
+      throw new Error("Stream response body missing");
     }
 
     const reader = response.body.getReader();
@@ -165,6 +167,9 @@ class ChatService {
                 payload.data as { conversation_id: number; user_message_id: number }
               );
               break;
+            case "status":
+              handlers.onStatus?.(String(payload.data.message || ""));
+              break;
             case "text":
               handlers.onText?.(String(payload.data.content || ""));
               break;
@@ -174,13 +179,15 @@ class ChatService {
                   message_id: number | null;
                   timings?: Record<string, number>;
                   is_rag_augmented?: boolean;
+                  sources?: ChatSource[];
+                  follow_up_suggestions?: string[];
                 }
               );
               break;
             case "error":
               handlers.onError?.(
                 String(payload.data.message || "Stream error"),
-                payload.data.fallback === "poll"
+                payload.data.fallback === "poll" || payload.data.fallback === true
               );
               break;
             default:
@@ -191,6 +198,68 @@ class ChatService {
         }
       }
     }
+  }
+
+  /**
+   * Send a message and stream the assistant response (SSE).
+   * POST /api/chat/conversations/{conversation_id}/messages/stream
+   */
+  async streamMessage(
+    conversationId: number,
+    message: MessageCreate,
+    accessToken: string,
+    handlers: StreamChatHandlers,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const baseURL = apiClient.defaults.baseURL || "http://localhost:8000";
+    const response = await fetch(
+      `${baseURL}/api/chat/conversations/${conversationId}/messages/stream`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(message),
+        signal,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Stream request failed (${response.status})`);
+    }
+
+    await this.consumeSseStream(response, handlers);
+  }
+
+  /**
+   * Regenerate and stream assistant reply for an existing user message.
+   * POST /api/chat/conversations/{conversation_id}/messages/{user_message_id}/regenerate/stream
+   */
+  async regenerateStreamMessage(
+    conversationId: number,
+    userMessageId: number,
+    accessToken: string,
+    handlers: StreamChatHandlers,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const baseURL = apiClient.defaults.baseURL || "http://localhost:8000";
+    const response = await fetch(
+      `${baseURL}/api/chat/conversations/${conversationId}/messages/${userMessageId}/regenerate/stream`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        signal,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Regenerate stream failed (${response.status})`);
+    }
+
+    await this.consumeSseStream(response, handlers);
   }
 
   /**
@@ -219,7 +288,7 @@ class ChatService {
       total: number;
       conversation_id: number;
     }>(`/api/chat/conversations/${conversationId}/messages?limit=${limit}`);
-    return response.data.items;
+    return response.data.items.map(enrichMessage);
   }
 
   /**
@@ -238,7 +307,7 @@ class ChatService {
       `/api/chat/messages/${messageId}/feedback`,
       feedback
     );
-    return response.data;
+    return enrichMessage(response.data);
   }
 
   /**

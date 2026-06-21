@@ -1,14 +1,48 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { chatService } from "../../services/chatService";
-import type { ConversationPublic, MessagePublic } from "../../types/chat";
+import { uploadDocument } from "../../api";
+import type { ConversationPublic, MessagePublic, ChatSource } from "../../types/chat";
 import { useAuth } from "../../providers";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface ComplianceAssistantProps {
   readonly isOpen: boolean;
+  readonly onOpen?: () => void;
+  readonly onClose?: () => void;
   readonly documentId?: number;
   readonly documentName?: string;
   readonly documentThumbnail?: string;
+}
+
+function getValidChatSources(sources?: ChatSource[]): ChatSource[] {
+  return (sources || []).filter(
+    (src) => typeof src.document_id === "number" && src.document_id > 0 && Boolean(src.document_name)
+  );
+}
+
+function AssistantChatIcon({
+  size = 22,
+  className = "",
+}: {
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
 }
 
 const STORAGE_KEY = "complianceAssistantConversations";
@@ -50,6 +84,8 @@ const QUICK_ACTIONS = [
 
 export function ComplianceAssistant({
   isOpen,
+  onOpen,
+  onClose,
   documentId,
   documentName = "General Chat",
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -67,20 +103,35 @@ export function ComplianceAssistant({
   const [showConversationList, setShowConversationList] = useState(false);
   const [isNewChatMode, setIsNewChatMode] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [followUpSuggestions, setFollowUpSuggestions] = useState<string[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [currentConversationKey, setCurrentConversationKey] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const streamAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastMessageIdsRef = useRef<Set<number>>(new Set());
   const activePollingConversationRef = useRef<number | null>(null);
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (force = false) => {
+    if (force || shouldAutoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 80;
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isThinking, streamingContent]);
+  }, [messages, streamingContent]);
 
   // Load conversation history for current document
   useEffect(() => {
@@ -207,10 +258,27 @@ export function ComplianceAssistant({
     if (!inputMessage.trim()) return;
 
     const userMessage = inputMessage;
+    const attachedFile = fileUpload;
     setInputMessage("");
     setFileUpload(null);
     setLoading(true);
     setIsThinking(true);
+    setStatusMessage("Sending…");
+    setStreamingContent("");
+    setFollowUpSuggestions([]);
+
+    const optimisticUserMessage: MessagePublic = {
+      id: -Date.now(),
+      organization_id: "",
+      conversation_id: activeConversation?.id ?? 0,
+      role: "user",
+      content: userMessage,
+      sequence_number: messages.length + 1,
+      created_at: new Date().toISOString(),
+      created_by: authState.user?.id ?? "",
+    };
+    setMessages((prev) => [...prev, optimisticUserMessage]);
+    shouldAutoScrollRef.current = true;
 
     try {
       let conversationToUse = activeConversation;
@@ -253,71 +321,35 @@ export function ComplianceAssistant({
         }
       }
 
-      setStreamingContent("");
-      setIsThinking(true);
-
-      const accessToken = authState.accessToken;
-      if (accessToken) {
+      if (attachedFile && conversationToUse) {
         try {
-          let accumulated = "";
-          let streamUserMessageId: number | null = null;
-          await chatService.streamMessage(
-            conversationToUse.id,
-            { content: userMessage, role: "user" },
-            accessToken,
-            {
-              onStart: async (data) => {
-                streamUserMessageId = data.user_message_id;
-                const updatedMessages = await chatService.getMessages(
-                  conversationToUse.id,
-                  100
-                );
-                const sorted = [...updatedMessages].sort((a, b) => a.id - b.id);
-                sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
-                setMessages(sorted);
-              },
-              onText: (chunk) => {
-                accumulated += chunk;
-                setStreamingContent(accumulated);
-              },
-              onDone: async () => {
-                setStreamingContent("");
-                setIsThinking(false);
-                const updatedMessages = await chatService.getMessages(
-                  conversationToUse.id,
-                  100
-                );
-                const sorted = [...updatedMessages].sort((a, b) => a.id - b.id);
-                sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
-                setMessages(sorted);
-              },
-              onError: async (errMsg, usePollFallback) => {
-                console.warn("Stream error:", errMsg);
-                setStreamingContent("");
-                if (usePollFallback && streamUserMessageId) {
-                  setIsThinking(true);
-                  try {
-                    await chatService.regenerateResponse(
-                      conversationToUse.id,
-                      streamUserMessageId
-                    );
-                    pollForAIResponse(conversationToUse.id, streamUserMessageId);
-                  } catch (regenError) {
-                    console.error("Regenerate fallback failed:", regenError);
-                    setIsThinking(false);
-                  }
-                } else {
-                  setIsThinking(false);
-                }
-              },
-            }
-          );
-          return;
-        } catch (streamError) {
-          console.warn("Stream unavailable, using send + poll:", streamError);
-          setStreamingContent("");
+          setStatusMessage("Uploading document…");
+          const docType = documentId ? "regulation" : "policy";
+          const uploaded = await uploadDocument(attachedFile, docType);
+          await chatService.addConversationContext(conversationToUse.id, {
+            document_id: uploaded.id,
+            context_type: documentId ? "REGULATION" : "POLICY",
+          });
+        } catch (uploadError) {
+          console.error("Failed to upload attachment:", uploadError);
+          alert("Could not upload the attached file. Sending message without it.");
         }
       }
+
+      setStreamingContent("");
+      setIsThinking(true);
+      setStatusMessage("Thinking…");
+
+      const ok = await runStream(conversationToUse.id, (handlers, signal) =>
+        chatService.streamMessage(
+          conversationToUse.id,
+          { content: userMessage, role: "user" },
+          authState.accessToken!,
+          handlers,
+          signal
+        )
+      );
+      if (ok) return;
 
       const sentMessage = await chatService.sendMessage(
         conversationToUse.id,
@@ -337,6 +369,146 @@ export function ComplianceAssistant({
 
   const handleQuickAction = (action: string) => {
     setInputMessage(action);
+  };
+
+  const stopStreaming = () => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+    setIsStreaming(false);
+    setIsThinking(false);
+    setStatusMessage("");
+    setLoading(false);
+  };
+
+  const syncConversationMessages = useCallback(async (conversationId: number) => {
+    const updatedMessages = await chatService.getMessages(conversationId, 100);
+    const sorted = [...updatedMessages].sort((a, b) => a.id - b.id);
+    sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
+    setMessages(sorted);
+    return sorted;
+  }, []);
+
+  const runStream = async (
+    conversationId: number,
+    streamFn: (
+      handlers: Parameters<typeof chatService.streamMessage>[3],
+      signal: AbortSignal
+    ) => Promise<void>
+  ) => {
+    const accessToken = authState.accessToken;
+    if (!accessToken) return false;
+
+    streamAbortRef.current?.abort();
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    setIsStreaming(true);
+    setFollowUpSuggestions([]);
+
+    let accumulated = "";
+    let streamUserMessageId: number | null = null;
+    try {
+      await streamFn(
+        {
+          onStart: async (data) => {
+            streamUserMessageId = data.user_message_id;
+            setStatusMessage("Reading your message…");
+            await syncConversationMessages(conversationId);
+          },
+          onStatus: (msg) => {
+            if (msg) setStatusMessage(msg);
+          },
+          onText: (chunk) => {
+            accumulated += chunk;
+            setStreamingContent(accumulated);
+            setStatusMessage("");
+          },
+          onDone: async (data) => {
+            setStreamingContent("");
+            setStatusMessage("");
+            setIsThinking(false);
+            setIsStreaming(false);
+            setFollowUpSuggestions(data.follow_up_suggestions || []);
+            await syncConversationMessages(conversationId);
+            scrollToBottom(true);
+          },
+          onError: async (errMsg, usePollFallback) => {
+            console.warn("Stream error:", errMsg);
+            setStreamingContent("");
+            setStatusMessage("");
+            setIsStreaming(false);
+            if (controller.signal.aborted) {
+              setIsThinking(false);
+              return;
+            }
+            if (usePollFallback && streamUserMessageId) {
+              setIsThinking(true);
+              try {
+                await chatService.regenerateResponse(conversationId, streamUserMessageId);
+                pollForAIResponse(conversationId, streamUserMessageId);
+              } catch (regenError) {
+                console.error("Regenerate fallback failed:", regenError);
+                setIsThinking(false);
+              }
+            } else {
+              setIsThinking(false);
+            }
+          },
+        },
+        controller.signal
+      );
+      return true;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setIsThinking(false);
+        return true;
+      }
+      console.warn("Stream unavailable:", error);
+      setIsStreaming(false);
+      return false;
+    } finally {
+      streamAbortRef.current = null;
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!activeConversation || isStreaming) return;
+    const userMessages = messages.filter((m) => m.role === "user" && m.id > 0);
+    const lastUser = userMessages[userMessages.length - 1];
+    if (!lastUser) return;
+
+    setMessages((prev) =>
+      prev.filter((m) => !(m.role === "assistant" && m.id > lastUser.id))
+    );
+    setLoading(true);
+    setIsThinking(true);
+    setStreamingContent("");
+    setStatusMessage("Regenerating…");
+
+    const ok = await runStream(activeConversation.id, (handlers, signal) =>
+      chatService.regenerateStreamMessage(
+        activeConversation.id,
+        lastUser.id,
+        authState.accessToken!,
+        handlers,
+        signal
+      )
+    );
+
+    if (!ok) {
+      try {
+        await chatService.regenerateResponse(activeConversation.id, lastUser.id);
+        pollForAIResponse(activeConversation.id, lastUser.id);
+      } catch (error) {
+        console.error("Regenerate failed:", error);
+        setIsThinking(false);
+      }
+    }
+    setLoading(false);
+  };
+
+  const handleFollowUpClick = (suggestion: string) => {
+    setInputMessage(suggestion);
+    setFollowUpSuggestions([]);
   };
 
   const isFailedAssistantMessage = (content: string) =>
@@ -374,6 +546,10 @@ export function ComplianceAssistant({
 
         if (assistantReply) {
           syncMessages(updatedMessages);
+          const meta = assistantReply.chat_metadata;
+          if (meta?.follow_up_suggestions?.length) {
+            setFollowUpSuggestions(meta.follow_up_suggestions);
+          }
           setIsThinking(false);
           activePollingConversationRef.current = null;
           return;
@@ -406,7 +582,9 @@ export function ComplianceAssistant({
     pollingTimeoutRef.current = timeoutId;
   };
 
-  if (!isOpen) return null;
+  const handleClosePanel = () => {
+    onClose?.();
+  };
 
   const handleNewChat = () => {
     if (pollingTimeoutRef.current) {
@@ -414,9 +592,15 @@ export function ComplianceAssistant({
       pollingTimeoutRef.current = null;
     }
     activePollingConversationRef.current = null;
-    
+
+    if (isStreaming) {
+      stopStreaming();
+    }
+
     setMessages([]);
     setIsThinking(false);
+    setIsStreaming(false);
+    setFollowUpSuggestions([]);
     lastMessageIdsRef.current.clear();
     setShowConversationList(false);
     setActiveConversation(null);
@@ -468,6 +652,28 @@ export function ComplianceAssistant({
     });
   };
 
+  const isGenerating = isStreaming || isThinking;
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen?.()}
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-slate-800 to-slate-900 text-white shadow-lg hover:from-slate-700 hover:to-slate-800 transition-all"
+        title="Open Compliance Assistant"
+        aria-label="Open Compliance Assistant"
+      >
+        <AssistantChatIcon size={24} />
+        {isGenerating && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-4 w-4 rounded-full bg-emerald-400 border-2 border-white" />
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col h-screen shadow-xl">
       {/* Header */}
@@ -475,9 +681,7 @@ export function ComplianceAssistant({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
+              <AssistantChatIcon size={22} />
             </div>
             <div>
               <h2 className="text-base font-semibold">Compliance Assistant</h2>
@@ -510,6 +714,17 @@ export function ComplianceAssistant({
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <button
+              onClick={handleClosePanel}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              title="Close chat"
+              aria-label="Close chat"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
             </button>
           </div>
@@ -551,13 +766,15 @@ export function ComplianceAssistant({
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-gray-50">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        className="flex-1 overflow-y-auto bg-gray-50"
+      >
         {messages.length === 0 && !isThinking ? (
           <div className="h-full flex flex-col items-center justify-center p-6">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
+              <AssistantChatIcon size={32} className="text-slate-500" />
             </div>
             <h3 className="text-lg font-semibold text-gray-800 mb-1">How can I help?</h3>
             <p className="text-sm text-gray-500 text-center mb-6">
@@ -603,18 +820,7 @@ export function ComplianceAssistant({
                   }`}
                 >
                   {message.role === "assistant" ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 8V4H8"></path>
-                      <rect x="8" y="8" width="8" height="8" rx="1"></rect>
-                      <path d="M4 12H2"></path>
-                      <path d="M22 12h-2"></path>
-                      <path d="M12 2v2"></path>
-                      <path d="M12 22v-2"></path>
-                      <path d="M20 20l-1.5-1.5"></path>
-                      <path d="M4 4l1.5 1.5"></path>
-                      <path d="M20 4l-1.5 1.5"></path>
-                      <path d="M4 20l1.5-1.5"></path>
-                    </svg>
+                    <AssistantChatIcon size={16} />
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -640,11 +846,43 @@ export function ComplianceAssistant({
                       </p>
                     )}
                   </div>
-                  <span className={`text-[10px] mt-1 px-1 ${
-                    message.role === "user" ? "text-gray-400" : "text-gray-400"
-                  }`}>
-                    {message.created_at ? formatTime(message.created_at) : ''}
-                  </span>
+                  {(() => {
+                    const validSources =
+                      message.role === "assistant"
+                        ? getValidChatSources(message.chat_metadata?.sources)
+                        : [];
+                    if (!validSources.length) return null;
+                    return (
+                    <div className="mt-1 px-1 space-y-1">
+                      <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Sources</p>
+                      {validSources.map((src) => (
+                        <a
+                          key={`${message.id}-${src.document_id}-${src.document_name}`}
+                          href={`/documents/${src.document_id}`}
+                          className="block text-[11px] text-blue-600 hover:underline truncate"
+                        >
+                          {src.document_name}
+                        </a>
+                      ))}
+                    </div>
+                    );
+                  })()}
+                  <div className={`flex items-center gap-2 mt-1 px-1 ${message.role === "user" ? "justify-end" : ""}`}>
+                    <span className="text-[10px] text-gray-400">
+                      {message.created_at ? formatTime(message.created_at) : ""}
+                    </span>
+                    {message.role === "assistant" &&
+                      message.id === messages.filter((m) => m.role === "assistant" && m.id > 0).at(-1)?.id &&
+                      !isStreaming && (
+                        <button
+                          type="button"
+                          onClick={handleRegenerate}
+                          className="text-[10px] text-slate-500 hover:text-slate-800 underline"
+                        >
+                          Regenerate
+                        </button>
+                      )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -652,12 +890,9 @@ export function ComplianceAssistant({
             {(isThinking || streamingContent) && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 8V4H8"></path>
-                    <rect x="8" y="8" width="8" height="8" rx="1"></rect>
-                  </svg>
+                  <AssistantChatIcon size={16} />
                 </div>
-                <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100 max-w-[280px]">
+                <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100 max-w-[280px] min-w-[120px]">
                   {streamingContent ? (
                     <MarkdownRenderer content={streamingContent} />
                   ) : (
@@ -667,10 +902,27 @@ export function ComplianceAssistant({
                         <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></span>
                         <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></span>
                       </div>
-                      <span className="text-xs text-gray-500">Analyzing...</span>
+                      <span className="text-xs text-gray-500">
+                        {statusMessage || "Thinking…"}
+                      </span>
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {followUpSuggestions.length > 0 && !isStreaming && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {followUpSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => handleFollowUpClick(suggestion)}
+                    className="text-xs px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -734,11 +986,16 @@ export function ComplianceAssistant({
           </div>
           
           <button
-            type="submit"
-            disabled={loading || !inputMessage.trim()}
+            type={isStreaming ? "button" : "submit"}
+            onClick={isStreaming ? stopStreaming : undefined}
+            disabled={!isStreaming && (loading || !inputMessage.trim())}
             className="p-3 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow"
           >
-            {loading ? (
+            {isStreaming ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="1"></rect>
+              </svg>
+            ) : loading ? (
               <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

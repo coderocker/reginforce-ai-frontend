@@ -21,13 +21,29 @@ export interface MessagePublic {
   conversation_id: number;
   role: MessageRole;
   content: string;
-  sequence: number;
+  sequence?: number;
+  sequence_number?: number;
   intent?: string;
   entities?: Record<string, string[]>;
   confidence_score?: number;
-  referenced_documents?: number[];
+  referenced_documents?: number[] | string;
+  referenced_analyses?: string;
   created_at: string;
+  created_by?: string;
   feedback?: MessageFeedback;
+  chat_metadata?: ChatMessageMetadata;
+}
+
+export interface ChatSource {
+  document_id?: number;
+  document_name: string;
+  relevance_score?: number | null;
+  chunk_id?: number | null;
+}
+
+export interface ChatMessageMetadata {
+  sources?: ChatSource[];
+  follow_up_suggestions?: string[];
 }
 
 export type MessageRole = "user" | "assistant" | "system";

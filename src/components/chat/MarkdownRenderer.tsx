@@ -141,10 +141,11 @@ const markdownComponents: Components = {
 };
 
 export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
+  const displayContent = content.replace(/<!--\s*vet-data:[\s\S]*?-->/g, "").trim();
   return (
     <div className="markdown-content prose prose-sm prose-slate max-w-none">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-        {content}
+        {displayContent}
       </ReactMarkdown>
     </div>
   );
