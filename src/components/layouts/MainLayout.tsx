@@ -287,41 +287,17 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
 
           {/* Main Content */}
           <div className="layout-content-container flex flex-col max-w-[960px] flex-1 relative">
-            <div className="absolute top-0 right-0 -mr-12">
-              <button
-                onClick={() => {
-                  console.log("Chat button clicked");
-                  setShowChatSidebar(!showChatSidebar);
-                }}
-                className={`p-2 rounded-lg transition-colors ${
-                  showChatSidebar 
-                    ? "bg-[#0f1729] text-white" 
-                    : "hover:bg-[#f1f2f3]"
-                }`}
-                title="Open Compliance Assistant Chat"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24px"
-                  height="24px"
-                  fill="currentColor"
-                  viewBox="0 0 256 256"
-                >
-                  <path d="M231,175.89A56,56,0,0,1,176,232H40a8,8,0,0,1-8-8V88a56,56,0,0,1,112,0v8a8,8,0,0,0,16,0V88a72,72,0,0,0-144,0V40a8,8,0,0,1,16,0V80a56,56,0,0,1,112,0v88a40,40,0,0,1-40,40H40V216h136a40,40,0,0,0,40-40.11A8,8,0,0,1,231,175.89Z" />
-                </svg>
-              </button>
-            </div>
             {children}
           </div>
 
-          {/* Chat Sidebar - Always available, optional document context */}
-          {showChatSidebar && (
-            <ComplianceAssistant 
-              isOpen={showChatSidebar}
-              documentId={currentDocumentId}
-              documentName={currentDocumentId ? `Document ${currentDocumentId}` : "General Chat"}
-            />
-          )}
+          {/* Chat stays mounted so streaming continues when panel is closed */}
+          <ComplianceAssistant
+            isOpen={showChatSidebar}
+            onOpen={() => setShowChatSidebar(true)}
+            onClose={() => setShowChatSidebar(false)}
+            documentId={currentDocumentId}
+            documentName={currentDocumentId ? `Document ${currentDocumentId}` : "General Chat"}
+          />
         </div>
       </div>
     </div>

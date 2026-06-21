@@ -8,6 +8,12 @@ interface VettingResult {
   license_data: LiveLicenseCheckResponse;
   overall_risk: "SAFE" | "CAUTION" | "CRITICAL";
   recommendation: string;
+  developer_summary?: string;
+  business_summary?: string;
+  org_sbom?: { found: boolean; compliance_status?: string | null; project_name?: string | null };
+  policy_context?: Array<{ excerpt: string; document: string }>;
+  ecosystem?: string;
+  warnings?: string[];
 }
 
 export function PackageVetting() {
@@ -390,6 +396,50 @@ export function PackageVetting() {
               </p>
             </div>
           </div>
+
+          {(result.developer_summary || result.business_summary || result.org_sbom) && (
+            <div className="grid grid-cols-1 gap-4">
+              {result.org_sbom && (
+                <div className="border border-[#e0e0e0] rounded-lg p-6">
+                  <h3 className="text-[#131416] font-semibold mb-2">🏢 Organization SBOM</h3>
+                  {result.org_sbom.found ? (
+                    <p className="text-sm text-[#5a5f66]">
+                      Status: <strong>{result.org_sbom.compliance_status}</strong>
+                      {result.org_sbom.project_name ? ` · Project: ${result.org_sbom.project_name}` : ""}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-[#5a5f66]">
+                      Not found in uploaded SBOMs — add via SBOM upload before production use.
+                    </p>
+                  )}
+                </div>
+              )}
+              {result.developer_summary && (
+                <div className="border border-[#e0e0e0] rounded-lg p-6">
+                  <h3 className="text-[#131416] font-semibold mb-2">👩‍💻 Developer summary</h3>
+                  <p className="text-sm text-[#5a5f66]">{result.developer_summary}</p>
+                </div>
+              )}
+              {result.business_summary && (
+                <div className="border border-[#e0e0e0] rounded-lg p-6 bg-[#f9fafb]">
+                  <h3 className="text-[#131416] font-semibold mb-2">📋 Business / compliance summary</h3>
+                  <p className="text-sm text-[#5a5f66]">{result.business_summary}</p>
+                </div>
+              )}
+              {result.policy_context && result.policy_context.length > 0 && (
+                <div className="border border-[#e0e0e0] rounded-lg p-6">
+                  <h3 className="text-[#131416] font-semibold mb-2">📚 Policy context (RAG)</h3>
+                  <ul className="text-sm text-[#5a5f66] space-y-2">
+                    {result.policy_context.slice(0, 3).map((item, idx) => (
+                      <li key={idx}>
+                        <span className="font-medium">{item.document}:</span> {item.excerpt.slice(0, 180)}…
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Check Another Button */}
           <div className="flex justify-center pt-4">

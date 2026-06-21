@@ -3,6 +3,7 @@ import type {
   LiveCVECheckResponse,
   LiveLicenseCheckResponse,
   LiveCompatibilityCheckResponse,
+  PackageVetResponse,
   VulnerabilityStatistics,
   Project,
   ProjectCreate,
@@ -328,81 +329,86 @@ class OSSService {
   }
 
   /**
-   * Check a package for both CVE and license info in parallel
-   * Falls back to CVE license data if license endpoint fails (404)
+   * Unified package vetting (NIST + registry + org SBOM + RAG + LLM)
+   * POST /api/oss/packages/vet
    */
-  async vetPackage(packageName: string, version?: string) {
+  async vetPackage(packageName: string, version?: string, projectId?: number) {
     try {
-      // Try to get CVE data (required)
-      const cveData = await this.checkPackageCVE(packageName, version);
+      const response = await apiClient.post<PackageVetResponse>("/api/oss/packages/vet", {
+        package_name: packageName,
+        version: version || undefined,
+        project_id: projectId,
+        include_llm_summary: true,
+      });
 
-      // Try to get license data separately (optional, falls back to CVE license)
-      let licenseData: LiveLicenseCheckResponse | null = null;
-      try {
-        licenseData = await this.checkPackageLicense(packageName, version);
-      } catch (licenseError: any) {
-        // If license endpoint fails (404), create fallback from CVE data
-        if (licenseError.response?.status === 404 && cveData.license) {
-          console.warn(`License lookup failed for ${packageName}, using CVE license data`);
-          licenseData = {
-            package: packageName,
-            version: version || cveData.version || "any",
-            license: cveData.license,
-            verified: false,
-            spdx_id: cveData.license,
-            message: `License info extracted from NIST CVE data (from ${cveData.license_source})`,
-            source: cveData.license_source || "NIST NVD",
-            last_checked: cveData.last_checked,
-          };
-        } else {
-          // If it's a different error or CVE doesn't have license, re-throw
-          throw licenseError;
-        }
-      }
-
-      // Determine overall risk based on license verification and CVE presence
-      // Map API status to risk level
-      const statusRiskMap: Record<string, "SAFE" | "CAUTION" | "CRITICAL"> = {
-        safe: "SAFE",
-        low_risk: "CAUTION",
-        medium_risk: "CAUTION",
-        high_risk: "CRITICAL",
-        critical: "CRITICAL",
+      const vet = response.data;
+      const cveData: LiveCVECheckResponse = {
+        package: vet.package_name,
+        version: vet.version,
+        vulnerabilities: vet.security.cves.map((c) => ({
+          cve_id: c.cve_id || "",
+          severity: (c.severity || "Low") as LiveCVECheckResponse["vulnerabilities"][0]["severity"],
+          cvss: c.cvss || 0,
+          description: c.description || "",
+          published: "",
+          references: [],
+          remediation: "",
+        })),
+        status: (vet.security.status || "safe") as LiveCVECheckResponse["status"],
+        summary: {
+          total: vet.security.cve_count,
+          critical: vet.security.critical_count,
+          high: vet.security.high_count,
+          medium: vet.security.medium_count,
+          low: vet.security.low_count,
+        },
+        license: vet.license.spdx_id || vet.license.name || "Unknown",
+        license_source: vet.license.source || "unknown",
+        source: vet.sources.find((s) => s.includes("NIST")) || "NIST NVD",
+        last_checked: vet.generated_at,
       };
 
-      let overallRisk = statusRiskMap[cveData.status] || "SAFE";
+      const licenseData: LiveLicenseCheckResponse = {
+        package: vet.package_name,
+        version: vet.version,
+        license: vet.license.name,
+        verified: vet.license.verified,
+        spdx_id: vet.license.spdx_id || vet.license.name,
+        message: vet.recommendation.developer_summary,
+        source: vet.license.source || "registry",
+        home_page: "",
+        project_urls: {},
+        last_checked: vet.generated_at,
+      };
 
-      if (licenseData && !licenseData.verified && overallRisk === "SAFE") {
-        overallRisk = "CAUTION";
-      }
-
-      let recommendation = "✅ Safe to use";
-      if (overallRisk === "CAUTION") {
-        recommendation = "⚠️ Review before use";
-      } else if (overallRisk === "CRITICAL") {
-        recommendation = "🚫 Not recommended";
-      }
+      const actionLabels: Record<string, string> = {
+        APPROVE: "✅ Approved per current signals",
+        REVIEW: "⚠️ Review before use",
+        LEGAL_REVIEW: "⚠️ Legal review recommended",
+        ADD_TO_SBOM: "📋 Add to SBOM and assign compliance status",
+        BLOCK: "🚫 Not recommended",
+      };
 
       return {
-        package_name: packageName,
+        package_name: vet.package_name,
         cve_data: cveData,
-        license_data: licenseData || {
-          package: packageName,
-          version: version || cveData.version || "any",
-          license: cveData.license || "Unknown",
-          verified: false,
-          spdx_id: cveData.license || "Unknown",
-          message: "License information not available",
-          source: cveData.license_source || "NIST NVD",
-          last_checked: cveData.last_checked,
-        },
-        overall_risk: overallRisk,
-        recommendation,
+        license_data: licenseData,
+        overall_risk: vet.overall_risk as "SAFE" | "CAUTION" | "CRITICAL",
+        recommendation:
+          actionLabels[vet.recommendation.action] ||
+          vet.recommendation.business_summary,
+        developer_summary: vet.recommendation.developer_summary,
+        business_summary: vet.recommendation.business_summary,
+        org_sbom: vet.org_sbom,
+        policy_context: vet.policy_context,
+        ecosystem: vet.ecosystem,
+        warnings: vet.warnings,
+        sources: vet.sources,
+        vet,
       };
-    } catch (error: any) {
-      throw new Error(
-        error.response?.data?.detail || "Failed to vet package"
-      );
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      throw new Error(err.response?.data?.detail || "Failed to vet package");
     }
   }
 }
