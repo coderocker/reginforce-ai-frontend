@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { APP_NAME, APP_TAGLINE } from "../constants/branding";
 import { useAuth } from "../providers";
 
 export default function Login() {
@@ -38,8 +39,8 @@ export default function Login() {
         <div className="bg-slate-800 rounded-lg shadow-2xl p-8 border border-slate-700">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Comply Lens</h1>
-            <p className="text-slate-400">Compliance & OSS Management</p>
+            <h1 className="text-3xl font-bold text-white mb-2">{APP_NAME}</h1>
+            <p className="text-slate-400">{APP_TAGLINE}</p>
           </div>
 
           {/* Error Message */}

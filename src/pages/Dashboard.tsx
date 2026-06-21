@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
+import { APP_NAME } from '../constants/branding';
 import { getDocuments, getReports, getAnalysisStats } from '../api';
+import { getGapSeverity } from '../utils/gapUtils';
 import { ossService } from '../services/ossService';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -34,15 +36,10 @@ export function Dashboard() {
     staleTime: 60000, // 1 minute
   });
 
-  // Helper to get severity from gap (handles both 'severity' and 'severity_level')
-  const getGapSeverity = (gap: any): string | null => {
-    return gap.severity || gap.severity_level || null;
-  };
-
   // Calculate dashboard metrics from stats API with fallback to reports data
   const totalDocuments = stats?.total_documents || documents.length;
   const totalReports = stats?.total_analyses || reports.length;
-  const completedReports = reports.filter(r => r.status === 'processed');
+  const completedReports = reports.filter(r => r.status === 'processed' || r.status === 'completed');
   
   // Calculate gaps from reports if stats doesn't provide them
   const calculatedGaps = reports.reduce((acc, r) => acc + (r.gaps?.length || 0), 0);
@@ -460,7 +457,7 @@ export function Dashboard() {
           <Card>
             <div className="p-8 text-center">
               <div className="text-6xl mb-4">🚀</div>
-              <h3 className="text-xl font-bold mb-2 text-gray-900">Welcome to Comply Lens</h3>
+              <h3 className="text-xl font-bold mb-2 text-gray-900">Welcome to {APP_NAME}</h3>
               <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
                 Get started by uploading your regulation and policy documents.
                 Our AI will analyze them to identify compliance gaps and help you maintain regulatory adherence.

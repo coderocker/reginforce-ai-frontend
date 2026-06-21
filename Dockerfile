@@ -16,6 +16,10 @@ RUN pnpm install --frozen-lockfile --prod=false
 # Copy source code
 COPY . .
 
+# Allow passing the API base URL at build time (e.g. http://1.2.3.4 for VPS deploy)
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # Build the application with optimizations
 RUN pnpm build && \
   # Remove source maps and unnecessary files to reduce size
