@@ -17,7 +17,7 @@ export interface StreamChatHandlers {
     timings?: Record<string, number>;
     is_rag_augmented?: boolean;
   }) => void;
-  onError?: (message: string) => void;
+  onError?: (message: string, usePollFallback?: boolean) => void;
 }
 
 class ChatService {
@@ -178,7 +178,10 @@ class ChatService {
               );
               break;
             case "error":
-              handlers.onError?.(String(payload.data.message || "Stream error"));
+              handlers.onError?.(
+                String(payload.data.message || "Stream error"),
+                payload.data.fallback === "poll"
+              );
               break;
             default:
               break;
@@ -188,6 +191,19 @@ class ChatService {
         }
       }
     }
+  }
+
+  /**
+   * Regenerate assistant reply for an existing user message (stream fallback).
+   * POST /api/chat/conversations/{conversation_id}/messages/{user_message_id}/generate
+   */
+  async regenerateResponse(
+    conversationId: number,
+    userMessageId: number
+  ): Promise<void> {
+    await apiClient.post(
+      `/api/chat/conversations/${conversationId}/messages/${userMessageId}/generate`
+    );
   }
 
   /**

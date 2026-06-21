@@ -260,12 +260,14 @@ export function ComplianceAssistant({
       if (accessToken) {
         try {
           let accumulated = "";
+          let streamUserMessageId: number | null = null;
           await chatService.streamMessage(
             conversationToUse.id,
             { content: userMessage, role: "user" },
             accessToken,
             {
-              onStart: async () => {
+              onStart: async (data) => {
+                streamUserMessageId = data.user_message_id;
                 const updatedMessages = await chatService.getMessages(
                   conversationToUse.id,
                   100
@@ -289,10 +291,24 @@ export function ComplianceAssistant({
                 sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
                 setMessages(sorted);
               },
-              onError: (errMsg) => {
+              onError: async (errMsg, usePollFallback) => {
                 console.warn("Stream error:", errMsg);
                 setStreamingContent("");
-                setIsThinking(false);
+                if (usePollFallback && streamUserMessageId) {
+                  setIsThinking(true);
+                  try {
+                    await chatService.regenerateResponse(
+                      conversationToUse.id,
+                      streamUserMessageId
+                    );
+                    pollForAIResponse(conversationToUse.id, streamUserMessageId);
+                  } catch (regenError) {
+                    console.error("Regenerate fallback failed:", regenError);
+                    setIsThinking(false);
+                  }
+                } else {
+                  setIsThinking(false);
+                }
               },
             }
           );
