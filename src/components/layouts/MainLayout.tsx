@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { APP_NAME } from "../../constants/branding";
 import { useAuth } from "../../providers";
 import { ComplianceAssistant } from "../chat/ComplianceAssistant";
 
@@ -75,7 +76,7 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
             <div className="flex h-full min-h-[700px] flex-col justify-between bg-white p-4">
               <div className="flex flex-col gap-4">
                 <h1 className="text-[#131416] text-base font-medium leading-normal">
-                  Comply Lens
+                  {APP_NAME}
                 </h1>
                 <nav className="flex flex-col gap-2">
                   <Link

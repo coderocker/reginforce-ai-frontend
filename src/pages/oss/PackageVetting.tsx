@@ -41,7 +41,11 @@ export function PackageVetting() {
       if (err.response?.status === 404) {
         message = "Package or version not found in database";
       } else if (err.response?.status === 503) {
-        message = "External API is currently unavailable. Please try again later.";
+        const detail = err.response?.data?.detail;
+        message =
+          typeof detail === "string" && detail.includes("NVD_API_KEY")
+            ? "CVE lookup unavailable: NIST API key is missing or invalid. Ask your admin to set NVD_API_KEY on the server."
+            : "External API is currently unavailable. Please try again later.";
       } else if (err.response?.status === 400) {
         message = "Invalid package name or version format";
       }

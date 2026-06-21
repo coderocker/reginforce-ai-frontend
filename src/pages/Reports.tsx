@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { getReport, getReportTrends, deleteReport, getRemediationPlanForReport } from "../api";
 import type { GapPublic } from "../types/api";
+import { getGapRiskPercent, getGapSeverity } from "../utils/gapUtils";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { RiskBadge } from "../components/ui/RiskBadge";
@@ -16,11 +17,6 @@ interface GapCluster {
   mediumCount: number;
   lowCount: number;
 }
-
-// Helper to get severity from either 'severity' (backend) or 'severity_level' (legacy)
-const getGapSeverity = (gap: GapPublic): string | null => {
-  return gap.severity || (gap as any).severity_level || null;
-};
 
 // Helper to get description from either 'description' (backend) or 'gap_description' (legacy)
 const getGapDescription = (gap: GapPublic): string => {
@@ -462,7 +458,7 @@ export function Reports() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <RiskBadge
-                                score={Math.round((Number(gap.risk_score) || 0) * 100)}
+                                score={getGapRiskPercent(gap)}
                                 severity={getGapSeverity(gap) as any}
                               />
                               {gap.gap_type && (

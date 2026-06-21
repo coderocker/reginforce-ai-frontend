@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { APP_DOCUMENT_TITLE } from "./constants/branding";
 import { ReactQueryProvider } from "./providers/ReactQueryProvider";
 import { AuthProvider } from "./providers/AuthProvider";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -18,6 +20,10 @@ import { SbomUpload } from "./pages/oss/SbomUpload";
 import { Components } from "./pages/oss/Components";
 
 function App() {
+  useEffect(() => {
+    document.title = APP_DOCUMENT_TITLE;
+  }, []);
+
   return (
     <ReactQueryProvider>
       <AuthProvider>

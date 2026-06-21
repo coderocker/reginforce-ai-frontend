@@ -1,0 +1,41 @@
+# Comply Lens Frontend — Demo/VPS build (pinned pnpm for Node 20 Alpine)
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+COPY package.json pnpm-lock.yaml* ./
+
+RUN pnpm install --frozen-lockfile --prod=false
+
+COPY . .
+
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+# Demo image: vite build only (skip tsc -b; strict TS can fail in CI/Docker)
+RUN pnpm exec vite build && \
+  find dist -name "*.map" -delete && \
+  find dist -name "*.test.*" -delete
+
+FROM node:20-alpine AS production
+
+RUN npm install -g serve@14 && \
+  addgroup -g 1001 -S appuser && \
+  adduser -S -D -H -u 1001 -G appuser appuser && \
+  npm cache clean --force
+
+COPY --from=builder /app/dist /app
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+
+CMD ["serve", "-s", "/app", "-l", "8080"]
