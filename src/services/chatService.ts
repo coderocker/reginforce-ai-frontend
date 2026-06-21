@@ -9,6 +9,17 @@ import type {
   ConversationStats,
 } from "../types/chat";
 
+export interface StreamChatHandlers {
+  onStart?: (data: { conversation_id: number; user_message_id: number }) => void;
+  onText?: (chunk: string) => void;
+  onDone?: (data: {
+    message_id: number | null;
+    timings?: Record<string, number>;
+    is_rag_augmented?: boolean;
+  }) => void;
+  onError?: (message: string) => void;
+}
+
 class ChatService {
 
   /**
@@ -99,6 +110,84 @@ class ChatService {
       message
     );
     return response.data;
+  }
+
+  /**
+   * Send a message and stream the assistant response (SSE).
+   * POST /api/chat/conversations/{conversation_id}/messages/stream
+   */
+  async streamMessage(
+    conversationId: number,
+    message: MessageCreate,
+    accessToken: string,
+    handlers: StreamChatHandlers
+  ): Promise<void> {
+    const baseURL = apiClient.defaults.baseURL || "http://localhost:8000";
+    const response = await fetch(
+      `${baseURL}/api/chat/conversations/${conversationId}/messages/stream`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(message),
+      }
+    );
+
+    if (!response.ok || !response.body) {
+      throw new Error(`Stream request failed (${response.status})`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        try {
+          const payload = JSON.parse(line.slice(5).trim()) as {
+            type: string;
+            data: Record<string, unknown>;
+          };
+          switch (payload.type) {
+            case "start":
+              handlers.onStart?.(
+                payload.data as { conversation_id: number; user_message_id: number }
+              );
+              break;
+            case "text":
+              handlers.onText?.(String(payload.data.content || ""));
+              break;
+            case "done":
+              handlers.onDone?.(
+                payload.data as {
+                  message_id: number | null;
+                  timings?: Record<string, number>;
+                  is_rag_augmented?: boolean;
+                }
+              );
+              break;
+            case "error":
+              handlers.onError?.(String(payload.data.message || "Stream error"));
+              break;
+            default:
+              break;
+          }
+        } catch {
+          // ignore malformed SSE chunks
+        }
+      }
+    }
   }
 
   /**

@@ -295,12 +295,69 @@ export interface VulnerabilityStatistics {
   last_scan_date: string;
 }
 
+export interface PackageVetResponse {
+  package_name: string;
+  version: string;
+  ecosystem: string;
+  ecosystem_detection: string;
+  org_sbom: {
+    found: boolean;
+    compliance_status?: string | null;
+    project_name?: string | null;
+    linking_type?: string | null;
+    license_spdx?: string | null;
+  };
+  security: {
+    risk_level: string;
+    status: string;
+    cve_count: number;
+    critical_count: number;
+    high_count: number;
+    medium_count: number;
+    low_count: number;
+    cves: Array<{
+      cve_id?: string;
+      severity?: string;
+      cvss?: number;
+      description?: string;
+    }>;
+  };
+  license: {
+    name: string;
+    spdx_id?: string | null;
+    verified: boolean;
+    source?: string | null;
+  };
+  policy_context: Array<{
+    excerpt: string;
+    document: string;
+    score: number;
+  }>;
+  overall_risk: string;
+  recommendation: {
+    action: string;
+    developer_summary: string;
+    business_summary: string;
+  };
+  sources: string[];
+  warnings: string[];
+  generated_at: string;
+}
+
 export interface PackageVettingResult {
   package_name: string;
   cve_data: LiveCVECheckResponse;
   license_data: LiveLicenseCheckResponse;
   overall_risk: "SAFE" | "CAUTION" | "CRITICAL";
   recommendation: string;
+  developer_summary?: string;
+  business_summary?: string;
+  org_sbom?: PackageVetResponse["org_sbom"];
+  policy_context?: PackageVetResponse["policy_context"];
+  ecosystem?: string;
+  warnings?: string[];
+  sources?: string[];
+  vet?: PackageVetResponse;
 }
 
 // === Compliance Statistics ===

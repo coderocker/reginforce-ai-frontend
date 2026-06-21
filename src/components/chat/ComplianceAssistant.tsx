@@ -66,6 +66,7 @@ export function ComplianceAssistant({
   const [conversationHistory, setConversationHistory] = useState<StoredConversation[]>([]);
   const [showConversationList, setShowConversationList] = useState(false);
   const [isNewChatMode, setIsNewChatMode] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
   const [currentConversationKey, setCurrentConversationKey] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +80,7 @@ export function ComplianceAssistant({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isThinking]);
+  }, [messages, isThinking, streamingContent]);
 
   // Load conversation history for current document
   useEffect(() => {
@@ -252,6 +253,56 @@ export function ComplianceAssistant({
         }
       }
 
+      setStreamingContent("");
+      setIsThinking(true);
+
+      const accessToken = authState.accessToken;
+      if (accessToken) {
+        try {
+          let accumulated = "";
+          await chatService.streamMessage(
+            conversationToUse.id,
+            { content: userMessage, role: "user" },
+            accessToken,
+            {
+              onStart: async () => {
+                const updatedMessages = await chatService.getMessages(
+                  conversationToUse.id,
+                  100
+                );
+                const sorted = [...updatedMessages].sort((a, b) => a.id - b.id);
+                sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
+                setMessages(sorted);
+              },
+              onText: (chunk) => {
+                accumulated += chunk;
+                setStreamingContent(accumulated);
+              },
+              onDone: async () => {
+                setStreamingContent("");
+                setIsThinking(false);
+                const updatedMessages = await chatService.getMessages(
+                  conversationToUse.id,
+                  100
+                );
+                const sorted = [...updatedMessages].sort((a, b) => a.id - b.id);
+                sorted.forEach((msg) => lastMessageIdsRef.current.add(msg.id));
+                setMessages(sorted);
+              },
+              onError: (errMsg) => {
+                console.warn("Stream error:", errMsg);
+                setStreamingContent("");
+                setIsThinking(false);
+              },
+            }
+          );
+          return;
+        } catch (streamError) {
+          console.warn("Stream unavailable, using send + poll:", streamError);
+          setStreamingContent("");
+        }
+      }
+
       const sentMessage = await chatService.sendMessage(
         conversationToUse.id,
         { content: userMessage, role: "user" }
@@ -259,8 +310,6 @@ export function ComplianceAssistant({
 
       setMessages((prev) => [...prev, sentMessage]);
       lastMessageIdsRef.current.add(sentMessage.id);
-
-      setIsThinking(true);
       pollForAIResponse(conversationToUse.id, sentMessage.id);
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -584,8 +633,7 @@ export function ComplianceAssistant({
               </div>
             ))}
 
-            {/* Thinking Indicator */}
-            {isThinking && (
+            {(isThinking || streamingContent) && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -593,15 +641,19 @@ export function ComplianceAssistant({
                     <rect x="8" y="8" width="8" height="8" rx="1"></rect>
                   </svg>
                 </div>
-                <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0s" }}></span>
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></span>
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></span>
+                <div className="bg-white rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100 max-w-[280px]">
+                  {streamingContent ? (
+                    <MarkdownRenderer content={streamingContent} />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0s" }}></span>
+                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}></span>
+                        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}></span>
+                      </div>
+                      <span className="text-xs text-gray-500">Analyzing...</span>
                     </div>
-                    <span className="text-xs text-gray-500 ml-1">Analyzing...</span>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
