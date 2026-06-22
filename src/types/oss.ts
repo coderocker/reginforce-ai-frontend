@@ -476,6 +476,99 @@ export function getFinalLinkingType(component: SbomComponent): LinkingType {
   return component.linking_type;
 }
 
+// === USP Features ===
+
+export type ReleaseGateVerdict = "pass" | "review" | "block";
+
+export interface PackageDelta {
+  change_type: string;
+  package_name: string;
+  package_version: string;
+  package_ecosystem: string;
+  previous_version?: string | null;
+  component_id?: number | null;
+  license_spdx?: string | null;
+  compliance_status?: string | null;
+}
+
+export interface SbomDiff {
+  added: PackageDelta[];
+  removed: PackageDelta[];
+  changed: PackageDelta[];
+  unchanged_count: number;
+  total_delta: number;
+}
+
+export interface ReleaseGateEvaluation {
+  id: number;
+  target_sbom_id: number;
+  baseline_sbom_id?: number | null;
+  verdict: ReleaseGateVerdict;
+  pass_count: number;
+  review_count: number;
+  block_count: number;
+  delta_added: number;
+  delta_removed: number;
+  delta_changed: number;
+  reasons: string[];
+  created_by: string;
+  created_at: string;
+}
+
+export interface EvidencePack {
+  evaluation_id: number;
+  verdict: string;
+  evidence: Record<string, unknown>;
+}
+
+export interface DecisionEvent {
+  id: number;
+  component_id: number;
+  action: string;
+  assignee_id?: string | null;
+  actor_id: string;
+  comment?: string | null;
+  previous_status?: string | null;
+  new_status?: string | null;
+  created_at: string;
+}
+
+export interface DecisionQueue {
+  items: SbomComponent[];
+  total: number;
+}
+
+export interface OssWatchAlert {
+  id: number;
+  component_id: number;
+  package_name: string;
+  package_version: string;
+  alert_type: string;
+  severity: string;
+  message: string;
+  previous_risk?: string | null;
+  new_risk?: string | null;
+  acknowledged: boolean;
+  created_at: string;
+}
+
+export interface OssWatchSummary {
+  open_alerts: number;
+  critical_alerts: number;
+  needs_review_estimate: number;
+}
+
+export interface OssWatchScanResult {
+  scanned: number;
+  alerts_created: number;
+}
+
+export const GATE_VERDICT_COLORS: Record<ReleaseGateVerdict, { bg: string; text: string }> = {
+  pass: { bg: "bg-green-100", text: "text-green-800" },
+  review: { bg: "bg-amber-100", text: "text-amber-800" },
+  block: { bg: "bg-red-100", text: "text-red-800" },
+};
+
 // === Helper to parse linking type reasons ===
 
 export function parseLinkingTypeReasons(reasonsJson: string | null | undefined): string[] {
