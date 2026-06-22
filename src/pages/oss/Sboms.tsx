@@ -230,6 +230,12 @@ export function Sboms() {
                         >
                           View
                         </Link>
+                        <Link
+                          to={`/oss/releases/${sbom.id}`}
+                          className="text-xs text-emerald-700 hover:text-emerald-800 font-medium px-2 py-1 rounded hover:bg-emerald-50 border border-emerald-200"
+                        >
+                          Gate
+                        </Link>
                         <button
                           onClick={() => setDeletingSbom(sbom)}
                           className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 border border-red-200"

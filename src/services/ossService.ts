@@ -22,6 +22,13 @@ import type {
   ComplianceStatistics,
   LinkingTypeOverrideRequest,
   LinkingTypeReviewResponse,
+  SbomDiff,
+  ReleaseGateEvaluation,
+  DecisionQueue,
+  DecisionEvent,
+  OssWatchAlert,
+  OssWatchSummary,
+  OssWatchScanResult,
 } from "../types/oss";
 
 class OSSService {
@@ -410,6 +417,117 @@ class OSSService {
       const err = error as { response?: { data?: { detail?: string } } };
       throw new Error(err.response?.data?.detail || "Failed to vet package");
     }
+  }
+
+  // =====================
+  // USP: Release Gate + Evidence Pack
+  // =====================
+
+  async compareReleases(targetSbomId: number, baselineSbomId: number): Promise<SbomDiff> {
+    const response = await apiClient.post<SbomDiff>("/api/oss/releases/compare", {
+      target_sbom_id: targetSbomId,
+      baseline_sbom_id: baselineSbomId,
+    });
+    return response.data;
+  }
+
+  async runReleaseGate(
+    sbomId: number,
+    baselineSbomId?: number,
+    includeLlm = false
+  ): Promise<ReleaseGateEvaluation> {
+    const response = await apiClient.post<ReleaseGateEvaluation>(
+      `/api/oss/releases/${sbomId}/gate`,
+      { baseline_sbom_id: baselineSbomId ?? null, include_llm_summary: includeLlm }
+    );
+    return response.data;
+  }
+
+  async getLatestGate(sbomId: number): Promise<ReleaseGateEvaluation> {
+    const response = await apiClient.get<ReleaseGateEvaluation>(`/api/oss/releases/${sbomId}/gate`);
+    return response.data;
+  }
+
+  getEvidencePackJsonUrl(sbomId: number): string {
+    const base = apiClient.defaults.baseURL || "";
+    return `${base}/api/oss/releases/${sbomId}/evidence?format=json`;
+  }
+
+  getEvidencePackHtmlUrl(sbomId: number): string {
+    const base = apiClient.defaults.baseURL || "";
+    return `${base}/api/oss/releases/${sbomId}/evidence?format=html`;
+  }
+
+  // =====================
+  // USP: Decision Workflow
+  // =====================
+
+  async getDecisionQueue(limit = 50): Promise<DecisionQueue> {
+    const response = await apiClient.get<DecisionQueue>("/api/oss/decisions/queue", {
+      params: { limit },
+    });
+    return response.data;
+  }
+
+  async assignDecision(
+    componentId: number,
+    assigneeId: string,
+    comment?: string
+  ): Promise<DecisionEvent> {
+    const response = await apiClient.post<DecisionEvent>(
+      `/api/oss/decisions/${componentId}/assign`,
+      { assignee_id: assigneeId, comment }
+    );
+    return response.data;
+  }
+
+  async decisionAction(
+    componentId: number,
+    action: "approved" | "rejected" | "deferred" | "commented",
+    comment?: string
+  ): Promise<SbomComponent> {
+    const response = await apiClient.post<SbomComponent>(
+      `/api/oss/decisions/${componentId}/action`,
+      { action, comment }
+    );
+    return response.data;
+  }
+
+  async getDecisionHistory(componentId: number): Promise<DecisionEvent[]> {
+    const response = await apiClient.get<DecisionEvent[]>(
+      `/api/oss/decisions/${componentId}/history`
+    );
+    return response.data;
+  }
+
+  // =====================
+  // USP: OSS Watch
+  // =====================
+
+  async runOssWatch(limit = 100): Promise<OssWatchScanResult> {
+    const response = await apiClient.post<OssWatchScanResult>("/api/oss/watch/run", null, {
+      params: { limit },
+    });
+    return response.data;
+  }
+
+  async getOssWatchAlerts(acknowledged = false): Promise<OssWatchAlert[]> {
+    const response = await apiClient.get<OssWatchAlert[]>("/api/oss/watch/alerts", {
+      params: { acknowledged },
+    });
+    return response.data;
+  }
+
+  async getOssWatchSummary(): Promise<OssWatchSummary> {
+    const response = await apiClient.get<OssWatchSummary>("/api/oss/watch/summary");
+    return response.data;
+  }
+
+  async acknowledgeWatchAlert(alertId: number): Promise<OssWatchAlert> {
+    const response = await apiClient.patch<OssWatchAlert>(
+      `/api/oss/watch/alerts/${alertId}/acknowledge`
+    );
+    return response.data;
   }
 }
 

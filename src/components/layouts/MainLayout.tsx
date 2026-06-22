@@ -221,6 +221,26 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
                           📦 Components
                         </Link>
                         <Link
+                          to="/oss/decisions"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/oss/decisions")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          ⚖️ Decision Queue
+                        </Link>
+                        <Link
+                          to="/oss/watch"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/oss/watch")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          👁 OSS Watch
+                        </Link>
+                        <Link
                           to="/package-vetting"
                           className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                             isActive("/package-vetting")

@@ -18,6 +18,9 @@ import { Projects } from "./pages/oss/Projects";
 import { Sboms } from "./pages/oss/Sboms";
 import { SbomUpload } from "./pages/oss/SbomUpload";
 import { Components } from "./pages/oss/Components";
+import { ReleaseReadiness } from "./pages/oss/ReleaseReadiness";
+import { DecisionQueue } from "./pages/oss/DecisionQueue";
+import { OssWatch } from "./pages/oss/OssWatch";
 
 function App() {
   useEffect(() => {
@@ -54,6 +57,9 @@ function App() {
                       <Route path="/oss/sboms" element={<Sboms />} />
                       <Route path="/oss/sbom/upload" element={<SbomUpload />} />
                       <Route path="/oss/components" element={<Components />} />
+                      <Route path="/oss/releases/:sbomId" element={<ReleaseReadiness />} />
+                      <Route path="/oss/decisions" element={<DecisionQueue />} />
+                      <Route path="/oss/watch" element={<OssWatch />} />
                       
                       <Route path="/settings" element={<Dashboard />} />
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
