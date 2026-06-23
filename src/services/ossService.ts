@@ -31,6 +31,7 @@ import type {
   OssWatchScanResult,
   CiSnippetPlatform,
   CiSnippetResponse,
+  ShiftLeftDownloadsResponse,
 } from "../types/oss";
 
 class OSSService {
@@ -539,6 +540,13 @@ class OSSService {
   async getCiSnippet(platform: CiSnippetPlatform, apiUrl?: string): Promise<CiSnippetResponse> {
     const response = await apiClient.get<CiSnippetResponse>("/api/oss/shift-left/ci-snippet", {
       params: { platform, ...(apiUrl ? { api_url: apiUrl } : {}) },
+    });
+    return response.data;
+  }
+
+  async getShiftLeftDownloads(apiUrl?: string): Promise<ShiftLeftDownloadsResponse> {
+    const response = await apiClient.get<ShiftLeftDownloadsResponse>("/api/oss/shift-left/downloads", {
+      params: apiUrl ? { api_url: apiUrl } : undefined,
     });
     return response.data;
   }

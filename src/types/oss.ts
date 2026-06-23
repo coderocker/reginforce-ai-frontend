@@ -579,6 +579,27 @@ export interface CiSnippetResponse {
   docs_url?: string | null;
 }
 
+export interface ShiftLeftArtifactDownload {
+  id: string;
+  label: string;
+  filename: string;
+  version: string;
+  description: string;
+  install_hint: string;
+  size_bytes: number;
+  built_at: string;
+  download_path: string;
+  download_url: string;
+  available: boolean;
+}
+
+export interface ShiftLeftDownloadsResponse {
+  status: string;
+  built_at?: string | null;
+  build_command: string;
+  artifacts: ShiftLeftArtifactDownload[];
+}
+
 // === Helper to parse linking type reasons ===
 
 export function parseLinkingTypeReasons(reasonsJson: string | null | undefined): string[] {

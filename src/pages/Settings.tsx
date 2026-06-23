@@ -132,14 +132,14 @@ function PluginApiKeysSection() {
           {createMutation.isPending ? "Creating…" : "Create key"}
         </Button>
         {createMutation.isError && (
-          <p className="text-sm text-red-600 mt-2">Failed to create key. Admin role may be required.</p>
+          <p className="text-sm text-red-600 mt-2">Failed to create key. Please try again.</p>
         )}
       </div>
 
       <h4 className="text-sm font-medium mb-3">Existing keys</h4>
       {isLoading && <p className="text-sm text-gray-500">Loading…</p>}
       {Boolean(error) && (
-        <p className="text-sm text-red-600">Could not load keys. Organization admin access is required.</p>
+        <p className="text-sm text-red-600">Could not load keys. Please sign in and try again.</p>
       )}
       {!isLoading && data && data.items.length === 0 && (
         <p className="text-sm text-gray-500">No plugin keys yet.</p>
