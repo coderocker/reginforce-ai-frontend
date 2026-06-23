@@ -569,6 +569,16 @@ export const GATE_VERDICT_COLORS: Record<ReleaseGateVerdict, { bg: string; text:
   block: { bg: "bg-red-100", text: "text-red-800" },
 };
 
+// === Shift-Left Integrations ===
+
+export type CiSnippetPlatform = "gitlab" | "github";
+
+export interface CiSnippetResponse {
+  platform: string;
+  snippet: string;
+  docs_url?: string | null;
+}
+
 // === Helper to parse linking type reasons ===
 
 export function parseLinkingTypeReasons(reasonsJson: string | null | undefined): string[] {

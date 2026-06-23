@@ -241,6 +241,16 @@ export default function MainLayout({ children }: Readonly<MainLayoutProps>) {
                           👁 OSS Watch
                         </Link>
                         <Link
+                          to="/oss/integrations/shift-left"
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                            isActive("/oss/integrations/shift-left")
+                              ? "bg-emerald-100 text-emerald-700 font-medium"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          🔗 Shift-Left
+                        </Link>
+                        <Link
                           to="/package-vetting"
                           className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
                             isActive("/package-vetting")
