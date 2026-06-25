@@ -21,6 +21,8 @@ import { Components } from "./pages/oss/Components";
 import { ReleaseReadiness } from "./pages/oss/ReleaseReadiness";
 import { DecisionQueue } from "./pages/oss/DecisionQueue";
 import { OssWatch } from "./pages/oss/OssWatch";
+import { ShiftLeftIntegrations } from "./pages/oss/ShiftLeftIntegrations";
+import { Settings } from "./pages/Settings";
 
 function App() {
   useEffect(() => {
@@ -60,8 +62,9 @@ function App() {
                       <Route path="/oss/releases/:sbomId" element={<ReleaseReadiness />} />
                       <Route path="/oss/decisions" element={<DecisionQueue />} />
                       <Route path="/oss/watch" element={<OssWatch />} />
+                      <Route path="/oss/integrations/shift-left" element={<ShiftLeftIntegrations />} />
                       
-                      <Route path="/settings" element={<Dashboard />} />
+                      <Route path="/settings" element={<Settings />} />
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </MainLayout>

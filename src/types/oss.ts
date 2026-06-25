@@ -569,6 +569,37 @@ export const GATE_VERDICT_COLORS: Record<ReleaseGateVerdict, { bg: string; text:
   block: { bg: "bg-red-100", text: "text-red-800" },
 };
 
+// === Shift-Left Integrations ===
+
+export type CiSnippetPlatform = "gitlab" | "github";
+
+export interface CiSnippetResponse {
+  platform: string;
+  snippet: string;
+  docs_url?: string | null;
+}
+
+export interface ShiftLeftArtifactDownload {
+  id: string;
+  label: string;
+  filename: string;
+  version: string;
+  description: string;
+  install_hint: string;
+  size_bytes: number;
+  built_at: string;
+  download_path: string;
+  download_url: string;
+  available: boolean;
+}
+
+export interface ShiftLeftDownloadsResponse {
+  status: string;
+  built_at?: string | null;
+  build_command: string;
+  artifacts: ShiftLeftArtifactDownload[];
+}
+
 // === Helper to parse linking type reasons ===
 
 export function parseLinkingTypeReasons(reasonsJson: string | null | undefined): string[] {
