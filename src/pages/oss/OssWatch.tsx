@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ossService } from "../../services/ossService";
+import { ModuleHelpPanel } from "../../components/oss/ModuleHelpPanel";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { OSS_WATCH_HELP } from "../../constants/ossModuleHelp";
 import type { OssWatchAlert } from "../../types/oss";
 
 export function OssWatch() {
@@ -51,6 +53,14 @@ export function OssWatch() {
       </header>
 
       <div className="p-6 flex flex-col gap-6">
+        <ModuleHelpPanel
+          title="About OSS Watch"
+          summary={OSS_WATCH_HELP.summary}
+          steps={OSS_WATCH_HELP.steps}
+          bullets={OSS_WATCH_HELP.bullets}
+          legend={OSS_WATCH_HELP.legend}
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <SummaryCard label="Open alerts" value={summary?.open_alerts ?? 0} accent="text-amber-700" />
           <SummaryCard label="Critical alerts" value={summary?.critical_alerts ?? 0} accent="text-red-700" />

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { APP_DOCUMENT_TITLE } from "./constants/branding";
 import { ReactQueryProvider } from "./providers/ReactQueryProvider";
-import { AuthProvider } from "./providers/AuthProvider";
+import { AuthProvider, useAuth } from "./providers";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layouts/MainLayout";
 import Login from "./pages/Login";
@@ -23,7 +23,15 @@ import { DecisionQueue } from "./pages/oss/DecisionQueue";
 import { OssWatch } from "./pages/oss/OssWatch";
 import { ShiftLeftIntegrations } from "./pages/oss/ShiftLeftIntegrations";
 import { Settings } from "./pages/Settings";
+import AdminRoute from "./components/AdminRoute";
+import { OrganizationsAdmin } from "./pages/admin/OrganizationsAdmin";
+import { OrganizationDetail } from "./pages/admin/OrganizationDetail";
+import { getDefaultAppPath } from "./utils/roles";
 
+function DefaultRedirect() {
+  const { authState } = useAuth();
+  return <Navigate to={getDefaultAppPath(authState.user)} replace />;
+}
 function App() {
   useEffect(() => {
     document.title = APP_DOCUMENT_TITLE;
@@ -44,7 +52,7 @@ function App() {
                 <ProtectedRoute>
                   <MainLayout>
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/" element={<DefaultRedirect />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/documents" element={<Documents />} />
                       <Route path="/documents/:id" element={<DocumentDetail />} />
@@ -65,7 +73,23 @@ function App() {
                       <Route path="/oss/integrations/shift-left" element={<ShiftLeftIntegrations />} />
                       
                       <Route path="/settings" element={<Settings />} />
-                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      <Route
+                        path="/admin/organizations"
+                        element={
+                          <AdminRoute>
+                            <OrganizationsAdmin />
+                          </AdminRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/organizations/:orgId"
+                        element={
+                          <AdminRoute>
+                            <OrganizationDetail />
+                          </AdminRoute>
+                        }
+                      />
+                      <Route path="*" element={<DefaultRedirect />} />
                     </Routes>
                   </MainLayout>
                 </ProtectedRoute>

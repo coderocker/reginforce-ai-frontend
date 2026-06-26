@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ossService } from "../../services/ossService";
 import { useAuth } from "../../providers";
+import { ModuleHelpPanel } from "../../components/oss/ModuleHelpPanel";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { RELEASE_GATE_HELP } from "../../constants/ossModuleHelp";
 import {
   GATE_VERDICT_COLORS,
   type ReleaseGateEvaluation,
@@ -88,6 +90,14 @@ export function ReleaseReadiness() {
       </header>
 
       <div className="p-6 flex flex-col gap-6 max-w-5xl">
+        <ModuleHelpPanel
+          title="About Release Compliance Gate"
+          summary={RELEASE_GATE_HELP.summary}
+          steps={RELEASE_GATE_HELP.steps}
+          bullets={RELEASE_GATE_HELP.bullets}
+          legend={RELEASE_GATE_HELP.legend}
+        />
+
         <Card className="p-5 space-y-4">
           <h3 className="font-semibold text-gray-900">Compare & run gate</h3>
           <p className="text-sm text-gray-600">

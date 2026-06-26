@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
+import { ModuleHelpPanel } from "../../components/oss/ModuleHelpPanel";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { LICENSE_MANAGEMENT_HELP } from "../../constants/ossModuleHelp";
 
 type LicenseType = "permissive" | "copyleft" | "weak_copyleft" | "proprietary" | "public_domain" | "unknown";
 
@@ -227,6 +229,14 @@ export function LicenseManagement() {
           + Add License
         </Button>
       </div>
+
+      <ModuleHelpPanel
+        title="About License Management"
+        summary={LICENSE_MANAGEMENT_HELP.summary}
+        steps={LICENSE_MANAGEMENT_HELP.steps}
+        bullets={LICENSE_MANAGEMENT_HELP.bullets}
+        legend={LICENSE_MANAGEMENT_HELP.legend}
+      />
 
       {/* Create/Edit Form */}
       {showCreateForm && (

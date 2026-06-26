@@ -83,6 +83,19 @@ function getTokenExpirationTime(token: string): Date | null {
 }
 
 /**
+ * Extract roles from a decoded JWT payload (realm + client roles).
+ */
+function extractRolesFromToken(decoded: Record<string, unknown>): string[] {
+  const realmRoles = (decoded.realm_access as { roles?: string[] } | undefined)?.roles ?? [];
+  const topLevelRoles = (decoded.roles as string[] | undefined) ?? [];
+  const resourceAccess = decoded.resource_access as Record<string, { roles?: string[] }> | undefined;
+  const clientRoles = resourceAccess?.[KEYCLOAK_CLIENT_ID]?.roles ?? [];
+
+  const combined = [...realmRoles, ...topLevelRoles, ...clientRoles];
+  return [...new Set(combined)];
+}
+
+/**
  * Decodes JWT token to extract user information
  * Note: This is client-side decoding for convenience. Verify tokens on backend.
  */
@@ -95,13 +108,13 @@ function decodeToken(token: string): AuthUser | null {
 
     const decoded = JSON.parse(
       atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
-    );
+    ) as Record<string, unknown>;
 
     return {
-      id: decoded.sub || decoded.user_id || "",
-      username: decoded.preferred_username || decoded.username || "",
-      email: decoded.email || "",
-      roles: decoded.realm_access?.roles || decoded.roles || [],
+      id: (decoded.sub as string) || (decoded.user_id as string) || "",
+      username: (decoded.preferred_username as string) || (decoded.username as string) || "",
+      email: (decoded.email as string) || "",
+      roles: extractRolesFromToken(decoded),
     };
   } catch (error) {
     console.error("Error decoding token:", error);

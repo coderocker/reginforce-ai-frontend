@@ -1,15 +1,34 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { APP_NAME, APP_TAGLINE } from "../constants/branding";
+import { APP_NAME, APP_TAGLINE, APP_LOGO } from "../constants/branding";
 import { useAuth } from "../providers";
+import { identityService } from "../services/identityService";
+import authService from "../services/authService";
+import type { OrganizationBranding } from "../types/identity";
+import { getDefaultAppPath, resolveApiAssetUrl } from "../utils/roles";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [orgBranding, setOrgBranding] = useState<OrganizationBranding | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const displayName = orgBranding?.app_display_name || APP_NAME;
+  const tagline = orgBranding?.app_tagline || APP_TAGLINE;
+  const logoUrl = resolveApiAssetUrl(orgBranding?.logo_url) || APP_LOGO || null;
+
+  const handleUsernameBlur = async () => {
+    if (!username.includes("@")) return;
+    const branding = await identityService.lookupBrandingByEmail(username);
+    setOrgBranding(branding);
+    if (branding?.favicon_url) {
+      const link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+      if (link) link.href = resolveApiAssetUrl(branding.favicon_url) || link.href;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +43,9 @@ export default function Login() {
       }
 
       await login(username, password);
-      navigate("/dashboard");
+      const token = localStorage.getItem("comply_lens_access_token");
+      const user = token ? authService.decodeToken(token) : null;
+      navigate(getDefaultAppPath(user));
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Login failed. Please try again.";
@@ -39,8 +60,12 @@ export default function Login() {
         <div className="bg-slate-800 rounded-lg shadow-2xl p-8 border border-slate-700">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">{APP_NAME}</h1>
-            <p className="text-slate-400">{APP_TAGLINE}</p>
+            {logoUrl ? (
+              <img src={logoUrl} alt={displayName} className="mx-auto mb-4 h-12 w-auto" />
+            ) : (
+              <h1 className="text-3xl font-bold text-white mb-2">{displayName}</h1>
+            )}
+            <p className="text-slate-400">{tagline}</p>
           </div>
 
           {/* Error Message */}
@@ -62,7 +87,8 @@ export default function Login() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="john.doe@acme-corp.com"
+                onBlur={() => void handleUsernameBlur()}
+                placeholder="hraverkar@a10networks.com"
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 disabled={isLoading}
               />
@@ -108,16 +134,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Footer Info */}
-          <div className="mt-6 pt-6 border-t border-slate-700">
-            <p className="text-slate-500 text-xs text-center">
-              OAuth2 Password Bearer Authentication via Keycloak
-            </p>
-            <p className="text-slate-600 text-xs text-center mt-2">
-              Test credentials available in documentation
-            </p>
-          </div>
         </div>
 
         {/* Additional Info */}

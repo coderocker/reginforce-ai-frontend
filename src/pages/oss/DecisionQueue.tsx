@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ossService } from "../../services/ossService";
 import { useAuth } from "../../providers";
+import { ModuleHelpPanel } from "../../components/oss/ModuleHelpPanel";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { DECISION_QUEUE_HELP } from "../../constants/ossModuleHelp";
 import {
   COMPLIANCE_STATUS_COLORS,
   COMPLIANCE_STATUS_LABELS,
@@ -63,7 +65,16 @@ export function DecisionQueue() {
         <p className="text-sm text-gray-500">Human-in-the-loop review for legal and security decisions</p>
       </header>
 
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="p-6 flex flex-col gap-6">
+        <ModuleHelpPanel
+          title="About Compliance Decision Workflow"
+          summary={DECISION_QUEUE_HELP.summary}
+          steps={DECISION_QUEUE_HELP.steps}
+          bullets={DECISION_QUEUE_HELP.bullets}
+          legend={DECISION_QUEUE_HELP.legend}
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-4">
           <h3 className="font-semibold mb-3">Review queue ({items.length})</h3>
           {isLoading && <p className="text-sm text-gray-500">Loading…</p>}
@@ -137,6 +148,7 @@ export function DecisionQueue() {
             <p className="text-sm text-gray-500">Select a package to review.</p>
           )}
         </Card>
+        </div>
       </div>
     </>
   );
