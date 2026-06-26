@@ -134,16 +134,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Footer Info */}
-          <div className="mt-6 pt-6 border-t border-slate-700">
-            <p className="text-slate-500 text-xs text-center">
-              OAuth2 Password Bearer Authentication via Keycloak
-            </p>
-            <p className="text-slate-600 text-xs text-center mt-2">
-              Test credentials available in documentation
-            </p>
-          </div>
         </div>
 
         {/* Additional Info */}
